@@ -1,0 +1,35 @@
+# Local dev infra. Requires Docker Desktop.
+# No Docker? Use managed services instead and set DATABASE_URL / REDIS_URL in .env:
+#   - Postgres: Neon (neon.tech) free tier
+#   - Redis:    Upstash (upstash.com) free tier
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: watool-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: watool
+      POSTGRES_PASSWORD: watool
+      POSTGRES_DB: watool
+    ports:
+      - "5432:5432"
+    volumes:
+      - watool_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watool"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: watool-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - watool_redisdata:/data
+
+volumes:
+  watool_pgdata:
+  watool_redisdata:

@@ -1,0 +1,412 @@
+// WhatsApp Chatbot Portal — data model.
+// See ARCHITECTURE.md §6. Phase 0 ships the tenancy/auth core; WhatsApp,
+// flow, and broadcast models are defined now so later phases just fill them in.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Tenancy & auth ────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  AGENT
+  ANALYST
+}
+
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      Membership[]
+  invites          Invite[]
+  whatsAppAccounts WhatsAppAccount[]
+  contacts         Contact[]
+  tags             Tag[]
+  segments         Segment[]
+  conversations    Conversation[]
+  messages         Message[]
+  templates        Template[]
+  flows            Flow[]
+  flowRuns         FlowRun[]
+  broadcasts       Broadcast[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships         Membership[]
+  assignedConversations Conversation[] @relation("AssignedAgent")
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  role      Role     @default(AGENT)
+  createdAt DateTime @default(now())
+
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  role      Role     @default(AGENT)
+  token     String   @unique
+  invitedBy String
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email])
+  @@index([orgId])
+}
+
+// ── WhatsApp connectivity (Phase 1) ────────────────────────────────────────
+
+enum WaAccountStatus {
+  PENDING
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+model WhatsAppAccount {
+  id             String          @id @default(cuid())
+  orgId          String
+  wabaId         String          @unique
+  businessId     String?
+  accessTokenEnc String? // encrypted at rest
+  tokenExpiresAt DateTime?
+  status         WaAccountStatus @default(PENDING)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  org          Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  phoneNumbers PhoneNumber[]
+
+  @@index([orgId])
+}
+
+model PhoneNumber {
+  id                String   @id @default(cuid())
+  whatsAppAccountId String
+  phoneNumberId     String   @unique // Meta's phone_number_id
+  displayNumber     String
+  verifiedName      String?
+  qualityRating     String?
+  createdAt         DateTime @default(now())
+
+  account       WhatsAppAccount @relation(fields: [whatsAppAccountId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([whatsAppAccountId])
+}
+
+// ── Contacts ────────────────────────────────────────────────────────────────
+
+enum OptInStatus {
+  UNKNOWN
+  OPTED_IN
+  OPTED_OUT
+}
+
+model Contact {
+  id           String      @id @default(cuid())
+  orgId        String
+  waId         String // WhatsApp id (phone in intl format, no +)
+  name         String?
+  phone        String?
+  optInStatus  OptInStatus @default(UNKNOWN)
+  attributes   Json        @default("{}")
+  lastInboundAt DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  org           Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contactTags   ContactTag[]
+  conversations Conversation[]
+  flowRuns      FlowRun[]
+  broadcastRecipients BroadcastRecipient[]
+
+  @@unique([orgId, waId])
+  @@index([orgId])
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  orgId String
+  name  String
+
+  org         Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contactTags ContactTag[]
+
+  @@unique([orgId, name])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model Segment {
+  id         String   @id @default(cuid())
+  orgId      String
+  name       String
+  filterJSON Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  org        Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  broadcasts Broadcast[]
+
+  @@index([orgId])
+}
+
+// ── Conversations & messages ────────────────────────────────────────────────
+
+enum ConversationStatus {
+  OPEN
+  BOT
+  AGENT
+  CLOSED
+}
+
+enum MessageDirection {
+  IN
+  OUT
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Conversation {
+  id             String             @id @default(cuid())
+  orgId          String
+  contactId      String
+  phoneNumberId  String
+  status         ConversationStatus @default(OPEN)
+  assignedUserId String?
+  windowExpiresAt DateTime? // Meta 24h customer-service window
+  lastMessageAt  DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+
+  org          Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  phoneNumber  PhoneNumber  @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  assignedUser User?        @relation("AssignedAgent", fields: [assignedUserId], references: [id])
+  messages     Message[]
+  flowRuns     FlowRun[]
+
+  @@index([orgId, status])
+  @@index([contactId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  orgId          String
+  conversationId String
+  direction      MessageDirection
+  waMessageId    String?          @unique
+  type           String // text | image | template | interactive | ...
+  payload        Json
+  status         MessageStatus    @default(QUEUED)
+  errorJSON      Json?
+  createdAt      DateTime         @default(now())
+
+  org          Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([orgId])
+}
+
+// ── Templates (Phase 4) ─────────────────────────────────────────────────────
+
+enum TemplateStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Template {
+  id             String         @id @default(cuid())
+  orgId          String
+  name           String
+  language       String         @default("en_US")
+  category       String // MARKETING | UTILITY | AUTHENTICATION
+  components     Json
+  metaStatus     TemplateStatus @default(DRAFT)
+  metaTemplateId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  org        Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  broadcasts Broadcast[]
+
+  @@unique([orgId, name, language])
+  @@index([orgId])
+}
+
+// ── Flows (Phase 3) ─────────────────────────────────────────────────────────
+
+enum FlowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FlowRunStatus {
+  ACTIVE
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+model Flow {
+  id        String     @id @default(cuid())
+  orgId     String
+  name      String
+  status    FlowStatus @default(DRAFT)
+  trigger   Json       @default("{}")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  versions FlowVersion[]
+  runs     FlowRun[]
+
+  @@index([orgId])
+}
+
+model FlowVersion {
+  id          String   @id @default(cuid())
+  flowId      String
+  version     Int
+  graphJSON   Json
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  flow Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  runs FlowRun[]
+
+  @@unique([flowId, version])
+}
+
+model FlowRun {
+  id             String        @id @default(cuid())
+  orgId          String
+  flowId         String
+  flowVersionId  String
+  contactId      String
+  conversationId String
+  currentNodeId  String?
+  state          Json          @default("{}")
+  status         FlowRunStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  org          Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  flow         Flow         @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flowVersion  FlowVersion  @relation(fields: [flowVersionId], references: [id])
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([conversationId])
+}
+
+// ── Broadcasts (Phase 4) ────────────────────────────────────────────────────
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Broadcast {
+  id         String          @id @default(cuid())
+  orgId      String
+  templateId String
+  segmentId  String?
+  scheduleAt DateTime?
+  status     BroadcastStatus @default(DRAFT)
+  stats      Json            @default("{}")
+  createdAt  DateTime        @default(now())
+
+  org        Org                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template   Template             @relation(fields: [templateId], references: [id])
+  segment    Segment?             @relation(fields: [segmentId], references: [id])
+  recipients BroadcastRecipient[]
+
+  @@index([orgId, status])
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  contactId   String
+  status      String   @default("pending")
+  waMessageId String?
+  createdAt   DateTime @default(now())
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+}
+
+// ── Webhook audit (Phase 1) ─────────────────────────────────────────────────
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  orgId       String?
+  raw         Json
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([orgId])
+  @@index([createdAt])
+}
