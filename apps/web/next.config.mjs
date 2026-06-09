@@ -10,7 +10,7 @@ const nextConfig = {
     "@watool/processing",
   ],
   // Server-only deps — keep them out of the client/edge bundle.
-  serverExternalPackages: ["@prisma/client", "bcryptjs", "bullmq", "ioredis"],
+  serverExternalPackages: ["@prisma/client", "bcryptjs", "bullmq", "ioredis", "@anthropic-ai/sdk"],
   experimental: {
     // When the app is reached through a tunnel (ngrok), the browser Origin is the
     // tunnel host but the proxied Host header may differ — Next blocks Server

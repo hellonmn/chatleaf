@@ -33,6 +33,13 @@ seats, contacts, monthly messages, and published flows; enforced on invite, publ
 and broadcast-send; a **Billing** page with usage meters and an instant plan switcher
 (the seam where Stripe Checkout plugs in).
 
+**Phase 6 — AI node** ✅ — an **"AI reply"** node in the flow builder: Claude
+(`@anthropic-ai/sdk`, default `claude-opus-4-8`) answers the customer using the
+conversation history + an optional knowledge base, sends the reply, and can save it
+to a contact variable. Model is selectable per-node (Opus/Sonnet/Haiku). Enabled by
+setting `ANTHROPIC_API_KEY`; the node degrades gracefully (hands off to an agent) when
+unset.
+
 **Embedded Signup** ✅ — one-click **"Connect with Facebook"** on Settings → WhatsApp:
 the customer authorizes in a popup and picks their number; the server exchanges the
 code for a token, subscribes the WABA's webhooks, and stores the number (token

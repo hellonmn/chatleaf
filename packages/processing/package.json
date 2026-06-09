@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
     "@watool/db": "*",
     "@watool/queue": "*",
     "@watool/wa": "*"

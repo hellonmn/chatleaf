@@ -29,6 +29,7 @@ type NodeKind =
   | "condition"
   | "setAttribute"
   | "addTag"
+  | "aiReply"
   | "assignAgent"
   | "end";
 
@@ -42,6 +43,7 @@ const NODE_META: Record<
   condition: { label: "Condition", color: "#d97706", hasTarget: true, sources: ["true", "false"] },
   setAttribute: { label: "Set attribute", color: "#0891b2", hasTarget: true, sources: [null] },
   addTag: { label: "Add tag", color: "#0d9488", hasTarget: true, sources: [null] },
+  aiReply: { label: "AI reply", color: "#9333ea", hasTarget: true, sources: [null] },
   assignAgent: { label: "Assign to agent", color: "#dc2626", hasTarget: true, sources: [null] },
   end: { label: "End", color: "#64748b", hasTarget: true, sources: [] },
 };
@@ -52,6 +54,7 @@ const PALETTE: NodeKind[] = [
   "condition",
   "setAttribute",
   "addTag",
+  "aiReply",
   "assignAgent",
   "end",
 ];
@@ -73,6 +76,14 @@ function defaultData(kind: NodeKind): Record<string, unknown> {
       return { attribute: "key", value: "value" };
     case "addTag":
       return { tags: ["tag"] };
+    case "aiReply":
+      return {
+        systemPrompt: "You are a helpful WhatsApp support assistant. Reply concisely.",
+        knowledge: "",
+        model: "",
+        maxTokens: 512,
+        saveToVariable: "",
+      };
     case "assignAgent":
       return { team: null };
     case "end":
@@ -94,6 +105,8 @@ function summary(kind: NodeKind, data: any): string {
       return `${data.attribute} = ${data.value}`;
     case "addTag":
       return (data.tags ?? []).join(", ");
+    case "aiReply":
+      return "AI answers using Claude";
     case "assignAgent":
       return "hand off to a human";
     case "end":
@@ -540,6 +553,69 @@ function ConfigPanel({
             defaultValue={(data.tags ?? []).join(", ")}
             onBlur={(e) => onChange({ tags: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
           />
+        </div>
+      )}
+
+      {kind === "aiReply" && (
+        <div className="space-y-2">
+          <div>
+            <label className={lbl}>Instructions (system prompt)</label>
+            <textarea
+              className={inp}
+              rows={3}
+              value={data.systemPrompt}
+              onChange={(e) => onChange({ systemPrompt: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className={lbl}>Knowledge base (optional)</label>
+            <textarea
+              className={inp}
+              rows={4}
+              placeholder="Paste FAQs / product info the AI may answer from…"
+              value={data.knowledge ?? ""}
+              onChange={(e) => onChange({ knowledge: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={lbl}>Model (optional)</label>
+              <select
+                className={inp}
+                value={data.model ?? ""}
+                onChange={(e) => onChange({ model: e.target.value })}
+              >
+                <option value="">Default (Opus 4.8)</option>
+                <option value="claude-opus-4-8">Opus 4.8 — most capable</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6 — balanced</option>
+                <option value="claude-haiku-4-5">Haiku 4.5 — fast/cheap</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Max length</label>
+              <input
+                type="number"
+                className={inp}
+                value={data.maxTokens ?? 512}
+                onChange={(e) => onChange({ maxTokens: Number(e.target.value) || 512 })}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={lbl}>Save answer to variable (optional)</label>
+            <input
+              className={inp}
+              list="watool-variables"
+              placeholder="e.g. ai_answer"
+              value={data.saveToVariable ?? ""}
+              onChange={(e) => onChange({ saveToVariable: e.target.value.replace(/\s+/g, "_") })}
+              onBlur={(e) => onAddVariable(e.target.value)}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400">
+            Claude answers using the conversation + knowledge base. Requires
+            <code className="mx-1">ANTHROPIC_API_KEY</code> on the server.
+          </p>
         </div>
       )}
 

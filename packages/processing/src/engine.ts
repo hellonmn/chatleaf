@@ -5,6 +5,7 @@ import {
   type FlowGraph,
   type FlowNode,
 } from "@watool/types";
+import { generateAiReply, isAiConfigured, type AiTurn } from "./ai";
 
 /**
  * Flow execution engine — an event-driven state machine (ARCHITECTURE §8.2).
@@ -185,6 +186,11 @@ async function execute(
         node = nextNode(graph, node.id);
         break;
       }
+      case "aiReply": {
+        await aiReplyNode(ctx, client, node, state);
+        node = nextNode(graph, node.id);
+        break;
+      }
       case "delay": {
         // MVP: timed waits need a scheduler (deferred). Continue immediately.
         node = nextNode(graph, node.id);
@@ -228,6 +234,79 @@ async function sendNode(
   } else {
     await send(ctx, client, text);
   }
+}
+
+/** AI node: Claude answers using the conversation history + optional knowledge. */
+async function aiReplyNode(
+  ctx: EngineContext,
+  client: WhatsAppClient,
+  node: Extract<FlowNode, { type: "aiReply" }>,
+  state: Record<string, unknown>,
+): Promise<void> {
+  if (!isAiConfigured()) {
+    await send(ctx, client, "Our AI assistant isn't available right now. An agent will follow up.");
+    return;
+  }
+
+  // Recent conversation as chat history (oldest → newest).
+  const recent = await prisma.message.findMany({
+    where: { conversationId: ctx.conversation.id },
+    orderBy: { createdAt: "asc" },
+    take: 20,
+  });
+  const history: AiTurn[] = recent
+    .map((m) => ({
+      role: (m.direction === "IN" ? "user" : "assistant") as AiTurn["role"],
+      text: messageText(m.payload),
+    }))
+    .filter((t) => t.text.length > 0);
+
+  // Ensure the just-received message is the final user turn.
+  const lastUser = [...history].reverse().find((t) => t.role === "user");
+  if (ctx.inboundText && lastUser?.text !== ctx.inboundText) {
+    history.push({ role: "user", text: ctx.inboundText });
+  }
+
+  let reply: string;
+  try {
+    reply = await generateAiReply({
+      systemPrompt: node.data.systemPrompt,
+      knowledge: node.data.knowledge,
+      model: node.data.model || undefined,
+      maxTokens: node.data.maxTokens,
+      history,
+    });
+  } catch (err) {
+    console.error("[engine] AI reply failed:", err instanceof Error ? err.message : err);
+    await send(ctx, client, "Sorry, I'm having trouble answering right now. An agent will follow up.");
+    return;
+  }
+
+  await send(ctx, client, reply);
+
+  // Optionally persist the AI answer as a variable / contact field.
+  if (node.data.saveToVariable) {
+    state[node.data.saveToVariable] = reply;
+    ctx.contact.attributes[node.data.saveToVariable] = reply;
+    await prisma.contact.update({
+      where: { id: ctx.contact.id },
+      data: { attributes: ctx.contact.attributes as Prisma.InputJsonValue },
+    });
+  }
+}
+
+/** Best-effort text extraction from a stored message payload. */
+function messageText(payload: unknown): string {
+  const p = payload as
+    | { text?: { body?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } }; button?: { text?: string } }
+    | null;
+  return (
+    p?.text?.body ??
+    p?.interactive?.button_reply?.title ??
+    p?.interactive?.list_reply?.title ??
+    p?.button?.text ??
+    ""
+  );
 }
 
 /** Send free-form text + persist the outbound message. Window-aware. */

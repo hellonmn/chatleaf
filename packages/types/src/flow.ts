@@ -18,6 +18,7 @@ export const NODE_TYPES = [
   "addTag",
   "httpRequest",
   "assignAgent",
+  "aiReply",
   "delay",
   "end",
 ] as const;
@@ -103,6 +104,22 @@ const DelayData = z.object({
   seconds: z.number().int().positive(),
 });
 
+/** AI-powered reply: Claude answers the customer using the conversation +
+ *  optional knowledge base. The generated text is sent and may be stored. */
+const AiReplyData = z.object({
+  /** Persona / instructions for the assistant. */
+  systemPrompt: z.string().default(
+    "You are a helpful WhatsApp support assistant. Reply concisely.",
+  ),
+  /** Optional knowledge-base text the model may answer from. */
+  knowledge: z.string().optional(),
+  /** Anthropic model id; defaults to the platform default if blank. */
+  model: z.string().optional(),
+  maxTokens: z.number().int().positive().max(4096).default(512),
+  /** Optionally store the AI reply in a variable / contact field. */
+  saveToVariable: z.string().optional(),
+});
+
 const EndData = z.object({});
 
 // ── Discriminated node union ────────────────────────────────────────────
@@ -118,6 +135,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   z.object({ ...baseNode, type: z.literal("addTag"), data: AddTagData }),
   z.object({ ...baseNode, type: z.literal("httpRequest"), data: HttpRequestData }),
   z.object({ ...baseNode, type: z.literal("assignAgent"), data: AssignAgentData }),
+  z.object({ ...baseNode, type: z.literal("aiReply"), data: AiReplyData }),
   z.object({ ...baseNode, type: z.literal("delay"), data: DelayData }),
   z.object({ ...baseNode, type: z.literal("end"), data: EndData }),
 ]);
