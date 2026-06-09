@@ -5,6 +5,7 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { canManageOrg } from "@watool/types";
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { deleteBroadcastAction } from "@/lib/actions/broadcasts";
 import { SendButton } from "./SendButton";
 
 const RECIPIENT_STYLE: Record<string, string> = {
@@ -116,6 +117,13 @@ export default async function BroadcastDetailPage({
             </div>
           ))}
         </section>
+      )}
+
+      {manage && (
+        <form action={deleteBroadcastAction} className="pt-2">
+          <input type="hidden" name="broadcastId" value={b.id} />
+          <button className="text-xs font-medium text-rose hover:underline">Delete broadcast</button>
+        </form>
       )}
     </div>
   );
