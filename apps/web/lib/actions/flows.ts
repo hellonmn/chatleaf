@@ -46,7 +46,7 @@ export async function createFlowAction(formData: FormData): Promise<void> {
       },
     },
   });
-  redirect(`/dashboard/flows/${flow.id}`);
+  redirect(`/flows/${flow.id}`);
 }
 
 export async function deleteFlowAction(formData: FormData): Promise<void> {
@@ -112,7 +112,7 @@ export async function saveFlowAction(
 
   await upsertDraftVersion(flowId, parsed.data);
   await prisma.flow.update({ where: { id: flowId }, data: { updatedAt: new Date() } });
-  revalidatePath(`/dashboard/flows/${flowId}`);
+  revalidatePath(`/flows/${flowId}`);
   return { ok: "Saved draft." };
 }
 
@@ -160,7 +160,7 @@ export async function publishFlowAction(
       trigger: (trigger?.data ?? {}) as Prisma.InputJsonValue,
     },
   });
-  revalidatePath(`/dashboard/flows/${flowId}`);
+  revalidatePath(`/flows/${flowId}`);
   revalidatePath("/dashboard/flows");
   return { ok: "Published! Your bot is live." };
 }

@@ -55,7 +55,7 @@ export default async function FlowsPage() {
               key={f.id}
               className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0"
             >
-              <Link href={`/dashboard/flows/${f.id}`} className="min-w-0 flex-1">
+              <Link href={`/flows/${f.id}`} className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium text-slate-900">
                     {f.name}
@@ -73,7 +73,7 @@ export default async function FlowsPage() {
                 </div>
               </Link>
               <Link
-                href={`/dashboard/flows/${f.id}`}
+                href={`/flows/${f.id}`}
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
               >
                 Edit

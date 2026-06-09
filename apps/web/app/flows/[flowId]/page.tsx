@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { FlowGraphSchema, type FlowGraph } from "@watool/types";
-import { FlowBuilder } from "./FlowBuilder";
+import { VerticalFlowBuilder } from "./VerticalFlowBuilder";
 
-export default async function FlowBuilderPage({
+export const metadata = { title: "Flow editor — Chatleaf" };
+
+export default async function FlowEditorPage({
   params,
 }: {
   params: Promise<{ flowId: string }>;
@@ -20,22 +22,12 @@ export default async function FlowBuilderPage({
 
   const latest = flow.versions[0];
   const parsed = latest ? FlowGraphSchema.safeParse(latest.graphJSON) : null;
-  const graph: FlowGraph = parsed?.success
-    ? parsed.data
-    : { nodes: [], edges: [] };
+  const graph: FlowGraph = parsed?.success ? parsed.data : { nodes: [], edges: [] };
 
-  // Known variables = existing contact custom-field keys + every askQuestion
-  // variable used across this org's flows. Offered as suggestions in the builder.
+  // Variable suggestions for Ask-question steps.
   const [contacts, versions] = await Promise.all([
-    prisma.contact.findMany({
-      where: { orgId: ctx.orgId },
-      select: { attributes: true },
-      take: 500,
-    }),
-    prisma.flowVersion.findMany({
-      where: { flow: { orgId: ctx.orgId } },
-      select: { graphJSON: true },
-    }),
+    prisma.contact.findMany({ where: { orgId: ctx.orgId }, select: { attributes: true }, take: 500 }),
+    prisma.flowVersion.findMany({ where: { flow: { orgId: ctx.orgId } }, select: { graphJSON: true } }),
   ]);
   const vars = new Set<string>();
   for (const c of contacts) {
@@ -44,13 +36,11 @@ export default async function FlowBuilderPage({
   for (const v of versions) {
     const g = FlowGraphSchema.safeParse(v.graphJSON);
     if (!g.success) continue;
-    for (const n of g.data.nodes) {
-      if (n.type === "askQuestion") vars.add(n.data.variable);
-    }
+    for (const n of g.data.nodes) if (n.type === "askQuestion") vars.add(n.data.variable);
   }
 
   return (
-    <FlowBuilder
+    <VerticalFlowBuilder
       flowId={flow.id}
       name={flow.name}
       status={flow.status}
