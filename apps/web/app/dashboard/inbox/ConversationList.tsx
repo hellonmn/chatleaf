@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Search } from "lucide-react";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { timeAgo } from "@/lib/format";
 
@@ -33,16 +34,30 @@ export function ConversationList({ items }: { items: ConversationItem[] }) {
   const pathname = usePathname();
   const activeId = pathname.split("/")[3]; // /dashboard/inbox/<id>
   const [filter, setFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
 
-  const shown = items.filter((c) => filter === "all" || c.status === filter);
+  const q = search.trim().toLowerCase();
+  const shown = items.filter(
+    (c) =>
+      (filter === "all" || c.status === filter) &&
+      (!q || c.name.toLowerCase().includes(q) || c.waId.includes(q)),
+  );
 
   return (
     <div className="flex w-80 shrink-0 flex-col border-r border-slate-200">
       <AutoRefresh seconds={6} />
       {/* Header + filters */}
       <div className="border-b border-slate-100 px-3 py-2.5">
-        <h1 className="px-1 text-sm font-semibold text-slate-900">Inbox</h1>
-        <div className="mt-2 flex gap-1">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search conversations…"
+            className="w-full rounded-btn border border-line bg-canvas py-2 pl-8 pr-3 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1">
           {FILTERS.map((f) => (
             <button
               key={f.key}
