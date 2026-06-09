@@ -13,6 +13,7 @@ import {
 } from "@watool/wa";
 import { canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { publishInbox } from "@/lib/realtime";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -100,6 +101,7 @@ export async function sendReplyAction(
         lastMessageAt: new Date(),
       },
     });
+    publishInbox(ctx.orgId);
     revalidatePath(`/dashboard/inbox/${convo.id}`);
     revalidatePath("/dashboard/inbox");
     return { ok: "Sent." };
@@ -206,6 +208,7 @@ export async function sendMediaReplyAction(
       where: { id: convo.id },
       data: { status: "AGENT", assignedUserId: ctx.userId, lastMessageAt: new Date() },
     });
+    publishInbox(ctx.orgId);
     revalidatePath(`/dashboard/inbox/${convo.id}`);
     return { ok: "Sent." };
   } catch (err) {
@@ -251,6 +254,7 @@ export async function setConversationStatusAction(
       assignedUserId: parsed.data.status === "AGENT" ? ctx.userId : null,
     },
   });
+  publishInbox(ctx.orgId);
   revalidatePath(`/dashboard/inbox/${parsed.data.conversationId}`);
   revalidatePath("/dashboard/inbox");
 }

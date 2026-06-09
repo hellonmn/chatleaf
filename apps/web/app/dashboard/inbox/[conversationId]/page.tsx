@@ -46,7 +46,7 @@ export default async function ConversationPage({
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
-      <AutoRefresh seconds={3} />
+      <AutoRefresh seconds={20} />
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-line px-4 py-3">

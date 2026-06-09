@@ -49,7 +49,7 @@ export function ConversationList({ items }: { items: ConversationItem[] }) {
 
   return (
     <div className="flex w-[340px] shrink-0 flex-col border-r border-line">
-      <AutoRefresh seconds={4} />
+      <AutoRefresh seconds={20} />
       <div className="space-y-2.5 border-b border-line px-3 py-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
