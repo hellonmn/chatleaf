@@ -44,7 +44,22 @@ export class WhatsAppApiError extends Error {
       this.httpStatus >= 500
     );
   }
+
+  /**
+   * Rate-limit errors ONLY — these mean Meta rejected the request without
+   * processing it, so retrying is safe (no duplicate message). 5xx is NOT here
+   * on purpose: the message may have been sent, so retrying could double-send.
+   */
+  get isRateLimited(): boolean {
+    const codes = new Set([4, 80007, 130429, 131056, 131048]);
+    return (
+      this.httpStatus === 429 ||
+      (this.code !== undefined && codes.has(this.code))
+    );
+  }
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export type SendResult = { waMessageId: string; raw: unknown };
 
@@ -52,7 +67,7 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
   const version = config.version ?? process.env.META_GRAPH_API_VERSION ?? "v21.0";
   const endpoint = `${GRAPH}/${version}/${config.phoneNumberId}/messages`;
 
-  async function post(body: Record<string, unknown>): Promise<SendResult> {
+  async function attempt(body: Record<string, unknown>): Promise<SendResult> {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -77,6 +92,25 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
       throw new WhatsAppApiError("No message id in response", undefined, res.status, json);
     }
     return { waMessageId, raw: json };
+  }
+
+  // Retry ONLY rate-limit errors (safe — the message was never sent), with
+  // exponential backoff + jitter. Capped at 3 tries.
+  const MAX_TRIES = 3;
+  async function post(body: Record<string, unknown>): Promise<SendResult> {
+    let lastErr: unknown;
+    for (let tryNo = 1; tryNo <= MAX_TRIES; tryNo++) {
+      try {
+        return await attempt(body);
+      } catch (err) {
+        lastErr = err;
+        const rateLimited = err instanceof WhatsAppApiError && err.isRateLimited;
+        if (!rateLimited || tryNo === MAX_TRIES) throw err;
+        const backoff = 500 * 2 ** (tryNo - 1) + Math.floor(Math.random() * 250);
+        await sleep(backoff);
+      }
+    }
+    throw lastErr;
   }
 
   /** True if `now` is still inside the 24h window ending at `windowExpiresAt`. */

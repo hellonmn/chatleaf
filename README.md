@@ -153,6 +153,7 @@ Go to **Team** to invite a teammate.
 | `npm run dev`         | Run all apps in dev (Turborepo)       |
 | `npm run build`       | Build everything                      |
 | `npm run typecheck`   | Type-check all packages               |
+| `npm test`            | Run the unit suite (pure logic)       |
 | `npm run db:studio`   | Open Prisma Studio                    |
 | `npm run db:push`     | Sync schema to DB (no migration file) |
 | `npm run db:migrate`  | Create + apply a migration            |

@@ -16,7 +16,8 @@
     "db:generate": "npm run db:generate -w @watool/db",
     "db:migrate": "npm run db:migrate -w @watool/db",
     "db:push": "npm run db:push -w @watool/db",
-    "db:studio": "npm run db:studio -w @watool/db"
+    "db:studio": "npm run db:studio -w @watool/db",
+    "test": "npm run test -w @watool/worker"
   },
   "devDependencies": {
     "turbo": "^2.3.3",
