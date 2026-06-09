@@ -7,6 +7,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { clock } from "@/lib/format";
 import { setConversationStatusAction } from "@/lib/actions/inbox";
 import { extractMediaRef } from "@watool/wa";
+import { MediaImage } from "@/components/MediaImage";
 import { MessageComposer } from "./MessageComposer";
 import { ContactPanel } from "./ContactPanel";
 
@@ -25,8 +26,7 @@ function MessageContent({ m }: { m: { id: string; payload: unknown; type: string
   return (
     <div className="space-y-1">
       {ref.kind === "image" || ref.kind === "sticker" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={ref.caption ?? "image"} className="max-h-64 rounded-lg" />
+        <MediaImage src={src} alt={ref.caption ?? "image"} />
       ) : ref.kind === "video" ? (
         <video src={src} controls className="max-h-64 rounded-lg" />
       ) : ref.kind === "audio" ? (
