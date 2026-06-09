@@ -8,11 +8,14 @@ import {
   removeTagAction,
   removeAttributeAction,
   setOptInAction,
+  setStageAction,
 } from "@/lib/actions/contacts";
 import { ContactTagForm } from "@/components/ContactTagForm";
 import { AttributeForm } from "./AttributeForm";
+import { DealForm } from "./DealForm";
 
 const OPTIN_OPTIONS = ["UNKNOWN", "OPTED_IN", "OPTED_OUT"] as const;
+const STAGE_OPTIONS = ["NEW", "QUALIFIED", "ENGAGED", "CONVERTED"] as const;
 
 export default async function ContactDetailPage({
   params,
@@ -68,9 +71,34 @@ export default async function ContactDetailPage({
         )}
       </div>
 
+      {/* Lifecycle stage + deal */}
+      <section className="rounded-card border border-line bg-white p-4 shadow-card">
+        <h2 className="mb-2 text-sm font-semibold text-ink">Lifecycle stage</h2>
+        <div className="flex flex-wrap gap-2">
+          {STAGE_OPTIONS.map((s) => (
+            <form key={s} action={setStageAction}>
+              <input type="hidden" name="contactId" value={contact.id} />
+              <input type="hidden" name="stage" value={s} />
+              <button
+                className={`rounded-pill px-3 py-1.5 text-xs font-semibold ${
+                  contact.stage === s
+                    ? "bg-brand text-white"
+                    : "border border-line text-sub hover:bg-canvas"
+                }`}
+              >
+                {s.toLowerCase()}
+              </button>
+            </form>
+          ))}
+        </div>
+        <div className="mt-4 border-t border-line pt-4">
+          <DealForm contactId={contact.id} source={contact.source} value={contact.value} />
+        </div>
+      </section>
+
       {/* Opt-in */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-2 text-sm font-semibold text-slate-900">Opt-in status</h2>
+      <section className="rounded-card border border-line bg-white p-4 shadow-card">
+        <h2 className="mb-2 text-sm font-semibold text-ink">Opt-in status</h2>
         <div className="flex gap-2">
           {OPTIN_OPTIONS.map((opt) => (
             <form key={opt} action={setOptInAction}>

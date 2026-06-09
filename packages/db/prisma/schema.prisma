@@ -140,6 +140,13 @@ enum OptInStatus {
   OPTED_OUT
 }
 
+enum LifecycleStage {
+  NEW
+  QUALIFIED
+  ENGAGED
+  CONVERTED
+}
+
 model Contact {
   id           String      @id @default(cuid())
   orgId        String
@@ -147,6 +154,9 @@ model Contact {
   name         String?
   phone        String?
   optInStatus  OptInStatus @default(UNKNOWN)
+  stage        LifecycleStage @default(NEW)
+  source       String? // where the lead came from (WhatsApp Ad, Website, Referral…)
+  value        Int? // estimated deal value (minor unit-agnostic; shown as currency)
   attributes   Json        @default("{}")
   lastInboundAt DateTime?
   createdAt    DateTime    @default(now())

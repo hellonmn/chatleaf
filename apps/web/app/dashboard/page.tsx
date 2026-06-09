@@ -52,9 +52,7 @@ export default async function DashboardOverview() {
     openChats,
     recent,
     weekMessages,
-    optedIn,
-    optedOut,
-    unknownOpt,
+    stageGroups,
     totalContacts,
     latestBroadcast,
     waAccount,
@@ -73,9 +71,7 @@ export default async function DashboardOverview() {
       take: 5,
     }),
     prisma.message.findMany({ where: { orgId, createdAt: { gte: sevenAgo } }, select: { createdAt: true } }),
-    prisma.contact.count({ where: { orgId, optInStatus: "OPTED_IN" } }),
-    prisma.contact.count({ where: { orgId, optInStatus: "OPTED_OUT" } }),
-    prisma.contact.count({ where: { orgId, optInStatus: "UNKNOWN" } }),
+    prisma.contact.groupBy({ by: ["stage"], where: { orgId }, _count: true }),
     prisma.contact.count({ where: { orgId } }),
     prisma.broadcast.findFirst({ where: { orgId }, include: { template: true }, orderBy: { createdAt: "desc" } }),
     prisma.whatsAppAccount.findFirst({ where: { orgId } }),
@@ -96,7 +92,9 @@ export default async function DashboardOverview() {
   const busiest = buckets.reduce((a, b) => (b.value > a.value ? b : a), buckets[0]!);
 
   const bStats = (latestBroadcast?.stats as { sent?: number; total?: number }) ?? {};
-  const optInRate = totalContacts ? Math.round((optedIn / totalContacts) * 100) : 0;
+  const stageCount = { NEW: 0, QUALIFIED: 0, ENGAGED: 0, CONVERTED: 0 };
+  for (const g of stageGroups) stageCount[g.stage as keyof typeof stageCount] = g._count;
+  const conversion = totalContacts ? Math.round((stageCount.CONVERTED / totalContacts) * 100) : 0;
 
   const stats = [
     { label: "Messages sent", value: msgSentWeek.toLocaleString(), delta: pctDelta(msgSentWeek, msgSentPrev), icon: Send },
@@ -194,13 +192,14 @@ export default async function DashboardOverview() {
 
         {/* Right column (1/3) */}
         <div className="space-y-5">
-          <SectionCard title="Audience">
+          <SectionCard title="Conversion">
             <div className="flex items-center gap-5">
-              <Donut percent={optInRate} />
+              <Donut percent={conversion} />
               <div className="space-y-2 text-sm">
-                <Legend color="#0e7490" label="Opted in" value={optedIn} />
-                <Legend color="#7fcfe6" label="Unknown" value={unknownOpt} />
-                <Legend color="#e0698a" label="Opted out" value={optedOut} />
+                <Legend color="#97a1b0" label="New" value={stageCount.NEW} />
+                <Legend color="#56a8d8" label="Qualified" value={stageCount.QUALIFIED} />
+                <Legend color="#f3a05a" label="Engaged" value={stageCount.ENGAGED} />
+                <Legend color="#0e7490" label="Converted" value={stageCount.CONVERTED} />
               </div>
             </div>
           </SectionCard>
