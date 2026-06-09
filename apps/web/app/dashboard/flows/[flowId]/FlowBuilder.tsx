@@ -5,6 +5,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   Handle,
@@ -18,7 +19,20 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Zap,
+  MessageSquare,
+  HelpCircle,
+  GitBranch,
+  Settings2,
+  Tag,
+  Sparkles,
+  Users,
+  Octagon,
+  Lightbulb,
+  type LucideIcon,
+} from "lucide-react";
 import type { FlowGraph } from "@watool/types";
 import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
 
@@ -35,17 +49,17 @@ type NodeKind =
 
 const NODE_META: Record<
   NodeKind,
-  { label: string; color: string; hasTarget: boolean; sources: (string | null)[] }
+  { label: string; color: string; icon: LucideIcon; hasTarget: boolean; sources: (string | null)[] }
 > = {
-  trigger: { label: "Trigger", color: "#16a34a", hasTarget: false, sources: [null] },
-  sendMessage: { label: "Send message", color: "#2563eb", hasTarget: true, sources: [null] },
-  askQuestion: { label: "Ask question", color: "#7c3aed", hasTarget: true, sources: [null] },
-  condition: { label: "Condition", color: "#d97706", hasTarget: true, sources: ["true", "false"] },
-  setAttribute: { label: "Set attribute", color: "#0891b2", hasTarget: true, sources: [null] },
-  addTag: { label: "Add tag", color: "#0d9488", hasTarget: true, sources: [null] },
-  aiReply: { label: "AI reply", color: "#9333ea", hasTarget: true, sources: [null] },
-  assignAgent: { label: "Assign to agent", color: "#dc2626", hasTarget: true, sources: [null] },
-  end: { label: "End", color: "#64748b", hasTarget: true, sources: [] },
+  trigger: { label: "Trigger", color: "#8366d6", icon: Zap, hasTarget: false, sources: [null] },
+  sendMessage: { label: "Send message", color: "#0e7490", icon: MessageSquare, hasTarget: true, sources: [null] },
+  askQuestion: { label: "Ask a question", color: "#0e7490", icon: HelpCircle, hasTarget: true, sources: [null] },
+  condition: { label: "Condition", color: "#e0698a", icon: GitBranch, hasTarget: true, sources: ["true", "false"] },
+  setAttribute: { label: "Set attribute", color: "#56a8d8", icon: Settings2, hasTarget: true, sources: [null] },
+  addTag: { label: "Add tag", color: "#2bb3e0", icon: Tag, hasTarget: true, sources: [null] },
+  aiReply: { label: "AI reply", color: "#8366d6", icon: Sparkles, hasTarget: true, sources: [null] },
+  assignAgent: { label: "Handoff", color: "#f3a05a", icon: Users, hasTarget: true, sources: [null] },
+  end: { label: "End", color: "#97a1b0", icon: Octagon, hasTarget: true, sources: [] },
 };
 
 const PALETTE: NodeKind[] = [
@@ -118,16 +132,28 @@ function summary(kind: NodeKind, data: any): string {
 function WNode({ type, data, selected }: NodeProps) {
   const kind = type as NodeKind;
   const meta = NODE_META[kind];
+  const Icon = meta.icon;
   return (
     <div
-      className="w-52 rounded-lg border bg-white text-xs shadow-sm"
-      style={{ borderColor: selected ? meta.color : "#e2e8f0", borderTopWidth: 3, borderTopColor: meta.color }}
+      className="w-56 overflow-hidden rounded-card border bg-white shadow-card"
+      style={{
+        borderColor: selected ? meta.color : "#e6ebf0",
+        boxShadow: selected ? `0 0 0 2px ${meta.color}33` : undefined,
+      }}
     >
       {meta.hasTarget && <Handle type="target" position={Position.Top} />}
-      <div className="px-3 py-1.5 font-semibold" style={{ color: meta.color }}>
-        {meta.label}
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+          style={{ background: `${meta.color}1a`, color: meta.color }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="text-sm font-bold text-ink">{meta.label}</span>
       </div>
-      <div className="truncate px-3 pb-2 text-slate-500">{summary(kind, data)}</div>
+      <div className="truncate border-t border-line px-3 py-2 text-xs text-sub">
+        {summary(kind, data)}
+      </div>
       {meta.sources.map((s, i) => {
         const count = meta.sources.length;
         const left = count === 1 ? 0.5 : (i + 1) / (count + 1);
@@ -312,20 +338,37 @@ function InnerBuilder({
 
       <div className="flex flex-1 overflow-hidden">
         {/* Palette */}
-        <div className="w-40 shrink-0 space-y-1.5 overflow-y-auto border-r border-slate-200 p-2">
-          <div className="px-1 pb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-            Add node
+        <div className="w-52 shrink-0 space-y-2 overflow-y-auto border-r border-line bg-white p-3">
+          <div className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-faint">
+            Add a step
           </div>
-          {PALETTE.map((k) => (
-            <button
-              key={k}
-              onClick={() => addNode(k)}
-              className="flex w-full items-center gap-2 rounded-md border border-slate-200 px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-            >
-              <span className="h-2 w-2 rounded-full" style={{ background: NODE_META[k].color }} />
-              {NODE_META[k].label}
-            </button>
-          ))}
+          {PALETTE.map((k) => {
+            const m = NODE_META[k];
+            const Icon = m.icon;
+            return (
+              <button
+                key={k}
+                onClick={() => addNode(k)}
+                className="flex w-full items-center gap-2.5 rounded-btn border border-line bg-white px-2.5 py-2 text-left text-sm font-semibold text-ink transition-colors hover:bg-canvas"
+              >
+                <span
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+                  style={{ background: `${m.color}1a`, color: m.color }}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                {m.label}
+              </button>
+            );
+          })}
+          <div className="mt-2 rounded-card bg-canvas p-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
+              <Lightbulb className="h-3.5 w-3.5 text-warm" /> Tip
+            </div>
+            <p className="mt-1 text-xs text-sub">
+              Add steps, then connect them by dragging from the dots under each card.
+            </p>
+          </div>
         </div>
 
         {/* Canvas */}
@@ -342,9 +385,9 @@ function InnerBuilder({
             fitView
             proOptions={{ hideAttribution: true }}
           >
-            <Background />
+            <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} color="#cdd6e0" />
             <Controls />
-            <MiniMap pannable className="!bg-slate-50" />
+            <MiniMap pannable className="!bg-canvas" />
           </ReactFlow>
         </div>
 
