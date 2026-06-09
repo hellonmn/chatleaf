@@ -96,14 +96,27 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
   const endpoint = `${GRAPH}/${version}/${config.phoneNumberId}/messages`;
 
   async function attempt(body: Record<string, unknown>): Promise<SendResult> {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
+        // Never hang: bail after 12s instead of spinning forever.
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch (e) {
+      const timedOut = e instanceof Error && e.name === "TimeoutError";
+      throw new WhatsAppApiError(
+        timedOut ? "WhatsApp timed out — check the connection in Settings." : "Couldn't reach WhatsApp.",
+        undefined,
+        0,
+        e,
+      );
+    }
 
     const json = (await res.json().catch(() => ({}))) as any;
     if (!res.ok) {

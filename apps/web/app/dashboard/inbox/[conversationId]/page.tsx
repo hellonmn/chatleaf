@@ -4,48 +4,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { clock } from "@/lib/format";
 import { avatarColor } from "@/lib/avatar";
-import { extractMediaRef } from "@watool/wa";
-import { MediaImage } from "@/components/MediaImage";
-import { MessageComposer } from "./MessageComposer";
 import { ContactPanel } from "./ContactPanel";
 import { ConversationActions } from "./ConversationActions";
-
-function body(payload: unknown, type: string): string {
-  const p = payload as { text?: { body?: string } } | null;
-  return p?.text?.body ?? `[${type}]`;
-}
-
-/** Render an image/video/audio/document via the auth'd media proxy, else text. */
-function MessageContent({ m }: { m: { id: string; payload: unknown; type: string } }) {
-  const ref = extractMediaRef(m.payload);
-  if (!ref) {
-    return <div className="whitespace-pre-wrap break-words">{body(m.payload, m.type)}</div>;
-  }
-  const src = ref.link ?? `/api/media/${m.id}`;
-  return (
-    <div className="space-y-1">
-      {ref.kind === "image" || ref.kind === "sticker" ? (
-        <MediaImage src={src} alt={ref.caption ?? "image"} />
-      ) : ref.kind === "video" ? (
-        <video src={src} controls className="max-h-64 rounded-lg" />
-      ) : ref.kind === "audio" ? (
-        <audio src={src} controls className="w-full" />
-      ) : (
-        <a
-          href={src}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 rounded-md bg-black/5 px-2 py-1 text-xs underline"
-        >
-          📄 {ref.filename ?? "Document"}
-        </a>
-      )}
-      {ref.caption && <div className="whitespace-pre-wrap break-words">{ref.caption}</div>}
-    </div>
-  );
-}
+import { ChatPane, type ChatMessage } from "./ChatPane";
 
 export default async function ConversationPage({
   params,
@@ -72,11 +34,19 @@ export default async function ConversationPage({
   const assignedTo = convo.assignedUser
     ? `${convo.assignedUser.name ?? convo.assignedUser.email}${convo.assignedUser.id === ctx.userId ? " (you)" : ""}`
     : null;
+  const chatMessages: ChatMessage[] = convo.messages.map((m) => ({
+    id: m.id,
+    direction: m.direction as "IN" | "OUT",
+    type: m.type,
+    payload: m.payload,
+    status: m.status,
+    createdAt: m.createdAt.toISOString(),
+  }));
 
   return (
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
-      <AutoRefresh seconds={5} />
+      <AutoRefresh seconds={3} />
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -104,57 +74,11 @@ export default async function ConversationPage({
         <ConversationActions conversationId={convo.id} status={convo.status} />
       </div>
 
-      {/* Messages */}
-      <div
-        className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
-        style={{
-          backgroundColor: "#f7f9fb",
-          backgroundImage: "radial-gradient(#dce3eb 1px, transparent 1px)",
-          backgroundSize: "18px 18px",
-        }}
-      >
-        <div className="mb-2 flex justify-center">
-          <span className="rounded-pill bg-white/80 px-3 py-1 text-[11px] font-semibold text-faint shadow-sm">
-            Today
-          </span>
-        </div>
-        {convo.messages.map((m) => {
-          const out = m.direction === "OUT";
-          return (
-            <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                  out
-                    ? "rounded-br-sm bg-brand text-white"
-                    : "rounded-bl-sm bg-white text-slate-800 shadow-sm"
-                }`}
-              >
-                <MessageContent m={m} />
-                <div
-                  className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                    out ? "text-white/70" : "text-slate-400"
-                  }`}
-                >
-                  {clock(m.createdAt)}
-                  {out && (
-                    <span>
-                      ·{" "}
-                      {m.status === "FAILED"
-                        ? "failed"
-                        : m.status.toLowerCase()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Composer */}
-      <div className="border-t border-slate-200 bg-white p-3">
-        <MessageComposer conversationId={convo.id} canSendFreeform={windowOpen} />
-      </div>
+      <ChatPane
+        conversationId={convo.id}
+        messages={chatMessages}
+        canSendFreeform={windowOpen}
+      />
       </div>
 
       <ContactPanel contact={convo.contact} assignedTo={assignedTo} />
