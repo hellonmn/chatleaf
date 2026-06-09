@@ -1,6 +1,7 @@
-import { MessageCircle, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { requireActiveContext } from "@/lib/session";
 import { signOutAction } from "@/lib/actions/signout";
+import { Wordmark } from "@/components/Wordmark";
 import { DashboardNav } from "./DashboardNav";
 
 export default async function DashboardLayout({
@@ -13,12 +14,9 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-        <div className="flex items-center gap-2 px-5 py-4 text-lg font-bold text-brand-ink">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-white">
-            <MessageCircle className="h-5 w-5" />
-          </span>
-          Watool
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white md:flex">
+        <div className="flex items-center px-5 py-4">
+          <Wordmark size={24} />
         </div>
         <DashboardNav />
         <div className="border-t border-slate-200 px-5 py-3 text-xs text-slate-400">

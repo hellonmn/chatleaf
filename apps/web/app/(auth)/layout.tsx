@@ -1,3 +1,5 @@
+import { Wordmark } from "@/components/Wordmark";
+
 export default function AuthLayout({
   children,
 }: {
@@ -7,17 +9,12 @@ export default function AuthLayout({
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center gap-2 text-2xl font-bold text-brand-ink">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-white">
-              W
-            </span>
-            Watool
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            WhatsApp chatbots for your business
+          <Wordmark size={32} />
+          <p className="mt-2 text-sm text-sub">
+            Conversations that grow your business.
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-card border border-line bg-white p-6 shadow-card">
           {children}
         </div>
       </div>

@@ -1,8 +1,10 @@
-# Watool — WhatsApp Chatbot Portal
+# Chatleaf — Conversations that grow your business
 
 A multi-tenant SaaS (WATI / SendPulse style) where businesses connect their own
 WhatsApp number, build chatbots in a visual flow builder, run broadcasts, and
-handle live chats. See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full design and roadmap.
+handle live chats. Branded per the **Chatleaf Brand Guide** (Ink + Ocean, Figtree,
+the leaf-letter wordmark). See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full
+design and roadmap. (Internal package names remain `@watool/*`.)
 
 ## Status
 

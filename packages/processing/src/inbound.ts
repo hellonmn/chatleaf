@@ -23,7 +23,7 @@ import { runFlowsForInbound } from "./engine";
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const PHASE1_REPLY =
-  "👋 Hello from Watool! Your message reached us. (This is an automated Phase 1 reply — the chatbot builder is coming soon.)";
+  "👋 Hi from Chatleaf! Thanks for your message — we've got it and someone will be right with you.";
 
 const STATUS_MAP: Record<WaStatus["status"], MessageStatus> = {
   sent: MessageStatus.SENT,
