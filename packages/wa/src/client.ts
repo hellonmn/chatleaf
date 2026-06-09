@@ -57,6 +57,34 @@ export class WhatsAppApiError extends Error {
       (this.code !== undefined && codes.has(this.code))
     );
   }
+
+  /** Expired / invalid access token (Meta OAuthException code 190 or HTTP 401). */
+  get isAuthError(): boolean {
+    return this.httpStatus === 401 || this.code === 190;
+  }
+}
+
+/**
+ * Turn any WhatsApp send error into an agent-friendly message, flagging the
+ * "token expired/invalid" case (which needs a reconnect, not a retry). Works
+ * for WhatsAppApiError and plain Errors (e.g. media upload failures).
+ */
+export function describeWaError(err: unknown): { message: string; isAuth: boolean } {
+  const RECONNECT =
+    "Your WhatsApp access token is invalid or has expired. Reconnect in Settings → WhatsApp.";
+  if (err instanceof WindowClosedError) return { message: err.message, isAuth: false };
+  if (err instanceof WhatsAppApiError) {
+    return err.isAuthError
+      ? { message: RECONNECT, isAuth: true }
+      : { message: err.message, isAuth: false };
+  }
+  const raw = err instanceof Error ? err.message : String(err);
+  const lower = raw.toLowerCase();
+  const isAuth =
+    lower.includes("session has expired") ||
+    lower.includes("access token") ||
+    (lower.includes("authentication") && lower.includes("error"));
+  return { message: isAuth ? RECONNECT : raw, isAuth };
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

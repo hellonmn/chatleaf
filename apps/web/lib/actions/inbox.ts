@@ -9,11 +9,20 @@ import {
   WindowClosedError,
   uploadMedia,
   mediaKindFromMime,
+  describeWaError,
 } from "@watool/wa";
 import { canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
+
+/** On an auth failure, flag the WhatsApp account so the UI prompts a reconnect. */
+async function flagIfAuthError(orgId: string, isAuth: boolean): Promise<void> {
+  if (!isAuth) return;
+  await prisma.whatsAppAccount
+    .updateMany({ where: { orgId }, data: { status: "ERROR" } })
+    .catch(() => {});
+}
 
 const replySchema = z.object({
   conversationId: z.string().min(1),
@@ -96,20 +105,17 @@ export async function sendReplyAction(
     return { ok: "Sent." };
   } catch (err) {
     const isWindow = err instanceof WindowClosedError;
+    const { message, isAuth } = describeWaError(err);
     await prisma.message.update({
       where: { id: outbound.id },
-      data: {
-        status: "FAILED",
-        errorJSON: { message: err instanceof Error ? err.message : String(err) },
-      },
+      data: { status: "FAILED", errorJSON: { message } },
     });
+    await flagIfAuthError(ctx.orgId, isAuth);
     revalidatePath(`/dashboard/inbox/${convo.id}`);
     return {
       error: isWindow
-        ? "The 24-hour reply window has closed. An approved template is required (coming in Phase 4)."
-        : err instanceof Error
-          ? err.message
-          : "Failed to send.",
+        ? "The 24-hour reply window has closed — an approved template is required (send a Broadcast)."
+        : message,
     };
   }
 }
@@ -164,7 +170,9 @@ export async function sendMediaReplyAction(
       filename: file.name,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Upload failed." };
+    const { message, isAuth } = describeWaError(err);
+    await flagIfAuthError(ctx.orgId, isAuth);
+    return { error: message };
   }
 
   const outbound = await prisma.message.create({
@@ -202,17 +210,17 @@ export async function sendMediaReplyAction(
     return { ok: "Sent." };
   } catch (err) {
     const isWindow = err instanceof WindowClosedError;
+    const { message, isAuth } = describeWaError(err);
     await prisma.message.update({
       where: { id: outbound.id },
-      data: { status: "FAILED", errorJSON: { message: err instanceof Error ? err.message : String(err) } },
+      data: { status: "FAILED", errorJSON: { message } },
     });
+    await flagIfAuthError(ctx.orgId, isAuth);
     revalidatePath(`/dashboard/inbox/${convo.id}`);
     return {
       error: isWindow
         ? "The 24-hour reply window has closed — media can't be sent now."
-        : err instanceof Error
-          ? err.message
-          : "Failed to send.",
+        : message,
     };
   }
 }
