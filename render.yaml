@@ -1,18 +1,17 @@
-# Render Blueprint — deploys the Next.js web app + the BullMQ worker.
+# Render Blueprint — FREE single web service (no card required).
 #
-# Postgres + Redis are kept EXTERNAL (Neon + Upstash) via env vars you set in the
-# Render dashboard (sync: false). Prefer a shared Render "Environment Group" for
-# the secrets that must match across both services (esp. ENCRYPTION_KEY and
-# DATABASE_URL / REDIS_URL) — see DEPLOY.md.
+# At low volume you don't need the worker or Redis: the webhook processes inbound
+# messages INLINE whenever REDIS_URL is unset. Postgres stays on Neon (external),
+# so Render bills nothing. To scale later, add the paid worker + Redis — see the
+# commented block at the bottom and DEPLOY.md.
 #
 # Render Blueprint docs: https://render.com/docs/blueprint-spec
 
 services:
-  # ── Web app (Next.js dashboard + webhook ingest) ─────────────────────────
   - type: web
     name: watool-web
     runtime: node
-    plan: starter # 'free' also works (spins down when idle)
+    plan: free # free web service — spins down when idle, no card needed
     region: oregon
     buildCommand: npm ci && npm run db:generate && npm run build -w @watool/web
     startCommand: npm run start -w @watool/web
@@ -26,45 +25,48 @@ services:
       - key: META_GRAPH_API_VERSION
         value: v21.0
       - key: AUTH_SECRET
-        generateValue: true # Render generates a strong secret
-      # ── set these in the dashboard (or an Environment Group) ──
+        generateValue: true
+      # ── set these in the dashboard ──
       - key: DATABASE_URL # Neon pooled URL (…?sslmode=require&pgbouncer=true)
         sync: false
-      - key: REDIS_URL # Upstash rediss:// URL (NOT the REST URL)
-        sync: false
-      - key: ENCRYPTION_KEY # 32-byte hex — MUST match the worker
+      - key: ENCRYPTION_KEY # 32-byte hex
         sync: false
       - key: META_APP_SECRET
         sync: false
       - key: META_WEBHOOK_VERIFY_TOKEN
         sync: false
-      - key: ANTHROPIC_API_KEY # for the AI reply node (optional)
+      - key: ANTHROPIC_API_KEY # optional (AI reply node)
         sync: false
       # NEXT_PUBLIC_* are inlined at BUILD time — set before the first deploy.
-      - key: NEXT_PUBLIC_META_APP_ID
+      - key: NEXT_PUBLIC_META_APP_ID # optional (Embedded Signup)
         sync: false
-      - key: NEXT_PUBLIC_META_CONFIG_ID
+      - key: NEXT_PUBLIC_META_CONFIG_ID # optional (Embedded Signup)
         sync: false
+    # NOTE: REDIS_URL is intentionally NOT set here — leaving it unset makes the
+    # webhook process inbound inline (no worker needed). Only add it once you also
+    # run the worker, or queued jobs would pile up with nothing consuming them.
 
-  # ── Background worker (queue consumer: inbound, flows, broadcasts) ────────
-  - type: worker
-    name: watool-worker
-    runtime: node
-    plan: starter # Background Workers require a paid instance type
-    region: oregon
-    buildCommand: npm ci && npm run db:generate
-    startCommand: npm run start -w @watool/worker
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: "22"
-      - key: META_GRAPH_API_VERSION
-        value: v21.0
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: ENCRYPTION_KEY # MUST be identical to the web service
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
+# ── SCALING LATER: add a paid worker + Redis ────────────────────────────────
+# 1. Create an Upstash Redis. 2. Add REDIS_URL (rediss://…) to the web service
+#    AND the worker below. 3. Uncomment this service.
+#
+#  - type: worker
+#    name: watool-worker
+#    runtime: node
+#    plan: starter            # Background Workers are paid-only on Render
+#    region: oregon
+#    buildCommand: npm ci && npm run db:generate
+#    startCommand: npm run start -w @watool/worker
+#    envVars:
+#      - key: NODE_VERSION
+#        value: "22"
+#      - key: META_GRAPH_API_VERSION
+#        value: v21.0
+#      - key: DATABASE_URL
+#        sync: false
+#      - key: REDIS_URL          # same value as the web service
+#        sync: false
+#      - key: ENCRYPTION_KEY     # MUST match the web service
+#        sync: false
+#      - key: ANTHROPIC_API_KEY
+#        sync: false
