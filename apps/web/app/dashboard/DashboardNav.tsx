@@ -9,10 +9,7 @@ import {
   Workflow,
   Megaphone,
   LayoutTemplate,
-  BarChart3,
   MessageCircle,
-  UsersRound,
-  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,9 +21,6 @@ const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] 
   { href: "/dashboard/flows", label: "Automations", icon: Workflow },
   { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/dashboard/settings/whatsapp", label: "Channels", icon: MessageCircle },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/team", label: "Team", icon: UsersRound },
-  { href: "/dashboard/settings/billing", label: "Billing", icon: CreditCard },
 ];
 
 export function DashboardNav() {

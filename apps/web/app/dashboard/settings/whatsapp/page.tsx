@@ -1,4 +1,13 @@
-import { Smartphone, AlertTriangle } from "lucide-react";
+import {
+  Smartphone,
+  AlertTriangle,
+  Globe,
+  MessageCircle,
+  Send,
+  Instagram,
+  Bell,
+  Settings,
+} from "lucide-react";
 import { requireActiveContext } from "@/lib/session";
 import { prisma } from "@watool/db";
 import { canManageOrg } from "@watool/types";
@@ -35,14 +44,109 @@ export default async function WhatsAppSettingsPage() {
   const embeddedConfigured =
     !!process.env.NEXT_PUBLIC_META_APP_ID && !!process.env.NEXT_PUBLIC_META_CONFIG_ID;
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const msgsToday = await prisma.message.count({
+    where: { orgId: ctx.orgId, direction: "OUT", createdAt: { gte: todayStart } },
+  });
+  const connected = primary?.status === "CONNECTED";
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">WhatsApp</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Connect your WhatsApp Business number via the Meta Cloud API.
-        </p>
+    <div className="mx-auto max-w-4xl space-y-5">
+      {/* Banner */}
+      <div className="flex items-start gap-4 rounded-card bg-brand p-5 text-white shadow-card-lg">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10">
+          <Globe className="h-6 w-6" />
+        </span>
+        <div>
+          <div className="text-lg font-bold">One inbox, every channel</div>
+          <p className="text-sm text-white/80">
+            WhatsApp is live today. Telegram and Instagram are on the way —
+            connect them the moment they launch.
+          </p>
+        </div>
       </div>
+
+      {/* Channel cards */}
+      <div className="space-y-3">
+        {/* WhatsApp */}
+        <div className="flex items-center gap-4 rounded-card border border-line bg-white p-4 shadow-card">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#25D366] text-white">
+            <MessageCircle className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-ink">WhatsApp Business</span>
+              <span className={`rounded-pill px-2 py-0.5 text-xs font-semibold ${connected ? "bg-brand-soft text-brand-ink" : "bg-warm/15 text-[#c47a2e]"}`}>
+                {connected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+            <div className="truncate text-sm text-sub">
+              {primaryPhone ? `${primaryPhone.displayNumber} · ${ctx.orgName}` : "No number connected yet"}
+            </div>
+            {primaryPhone?.verifiedName && (
+              <div className="text-xs text-faint">⚡ {primaryPhone.verifiedName}</div>
+            )}
+          </div>
+          <div className="hidden text-right sm:block">
+            <div className="text-xl font-extrabold text-brand">{msgsToday.toLocaleString()}</div>
+            <div className="text-xs text-faint">msgs today</div>
+          </div>
+          <a href="#manage" className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas">
+            <Settings className="h-4 w-4" /> Manage
+          </a>
+        </div>
+
+        {/* Telegram + Instagram — coming soon */}
+        {[
+          { name: "Telegram", desc: "Bot API integration", icon: Send, bg: "#229ED9" },
+          { name: "Instagram DM", desc: "Direct messages via Meta", icon: Instagram, bg: "#E1306C" },
+        ].map((ch) => {
+          const Icon = ch.icon;
+          return (
+            <div key={ch.name} className="flex items-center gap-4 rounded-card border border-line bg-white p-4 shadow-card">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-white" style={{ background: ch.bg }}>
+                <Icon className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-ink">{ch.name}</span>
+                  <span className="rounded-pill bg-warm/15 px-2 py-0.5 text-xs font-semibold text-[#c47a2e]">Coming soon</span>
+                </div>
+                <div className="text-sm text-sub">{ch.desc}</div>
+                <div className="text-xs text-faint">⚡ On the roadmap</div>
+              </div>
+              <button className="inline-flex items-center gap-1.5 rounded-btn bg-brand-soft px-3 py-1.5 text-sm font-semibold text-brand-ink hover:bg-brand/15">
+                <Bell className="h-4 w-4" /> Notify me
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Connection health */}
+      {connected && (
+        <div className="rounded-card border border-line bg-white p-5 shadow-card">
+          <div className="text-sm font-bold text-ink">WhatsApp Business — connection health</div>
+          <p className="mt-0.5 text-sm text-sub">Your number and credentials at a glance.</p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Quality rating", value: primaryPhone?.qualityRating ?? "Unrated" },
+              { label: "Display name", value: primaryPhone?.verifiedName ?? "Pending" },
+              { label: "Phone status", value: connected ? "Verified" : "—" },
+              { label: "Connection", value: (primary?.status ?? "—").toLowerCase() },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-canvas px-3 py-2.5">
+                <div className="text-xs text-sub">{s.label}</div>
+                <div className="mt-0.5 font-bold capitalize text-brand">{s.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Manage / connect ─────────────────────────────────────────── */}
+      <div id="manage" className="space-y-5 pt-2">
 
       {/* Connected accounts */}
       <section className="rounded-lg border border-slate-200 bg-white p-5">
@@ -175,6 +279,7 @@ export default async function WhatsAppSettingsPage() {
           </p>
         )}
       </section>
+      </div>
     </div>
   );
 }

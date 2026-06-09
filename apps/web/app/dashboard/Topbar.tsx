@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Settings, CreditCard } from "lucide-react";
+import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell } from "lucide-react";
 import { signOutAction } from "@/lib/actions/signout";
 
 /** Per-route page title + subtitle, mirroring the Chatleaf Portal mockup's META map. */
@@ -80,8 +80,16 @@ export function Topbar({
         <p className="truncate text-sm text-sub">{meta.subtitle}</p>
       </div>
 
-      {/* User profile menu (no workspace switcher) */}
-      <div className="relative shrink-0" ref={menuRef}>
+      {/* Bell + user profile menu (no workspace switcher) */}
+      <div className="flex shrink-0 items-center gap-2">
+      <button
+        type="button"
+        title="Notifications"
+        className="grid h-9 w-9 place-items-center rounded-full border border-line text-sub transition-colors hover:bg-canvas"
+      >
+        <Bell className="h-4 w-4" />
+      </button>
+      <div className="relative" ref={menuRef}>
         <button
           onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-2 rounded-btn px-1.5 py-1.5 transition-colors hover:bg-canvas"
@@ -112,6 +120,13 @@ export function Topbar({
             </div>
             <div className="py-1">
               <Link
+                href="/dashboard/analytics"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-sub hover:bg-canvas"
+              >
+                <BarChart3 className="h-4 w-4" /> Analytics
+              </Link>
+              <Link
                 href="/dashboard/team"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 px-4 py-2 text-sm text-sub hover:bg-canvas"
@@ -133,6 +148,7 @@ export function Topbar({
             </form>
           </div>
         )}
+      </div>
       </div>
     </header>
   );
