@@ -1,0 +1,70 @@
+# Render Blueprint — deploys the Next.js web app + the BullMQ worker.
+#
+# Postgres + Redis are kept EXTERNAL (Neon + Upstash) via env vars you set in the
+# Render dashboard (sync: false). Prefer a shared Render "Environment Group" for
+# the secrets that must match across both services (esp. ENCRYPTION_KEY and
+# DATABASE_URL / REDIS_URL) — see DEPLOY.md.
+#
+# Render Blueprint docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ── Web app (Next.js dashboard + webhook ingest) ─────────────────────────
+  - type: web
+    name: watool-web
+    runtime: node
+    plan: starter # 'free' also works (spins down when idle)
+    region: oregon
+    buildCommand: npm ci && npm run db:generate && npm run build -w @watool/web
+    startCommand: npm run start -w @watool/web
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: META_GRAPH_API_VERSION
+        value: v21.0
+      - key: AUTH_SECRET
+        generateValue: true # Render generates a strong secret
+      # ── set these in the dashboard (or an Environment Group) ──
+      - key: DATABASE_URL # Neon pooled URL (…?sslmode=require&pgbouncer=true)
+        sync: false
+      - key: REDIS_URL # Upstash rediss:// URL (NOT the REST URL)
+        sync: false
+      - key: ENCRYPTION_KEY # 32-byte hex — MUST match the worker
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY # for the AI reply node (optional)
+        sync: false
+      # NEXT_PUBLIC_* are inlined at BUILD time — set before the first deploy.
+      - key: NEXT_PUBLIC_META_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_META_CONFIG_ID
+        sync: false
+
+  # ── Background worker (queue consumer: inbound, flows, broadcasts) ────────
+  - type: worker
+    name: watool-worker
+    runtime: node
+    plan: starter # Background Workers require a paid instance type
+    region: oregon
+    buildCommand: npm ci && npm run db:generate
+    startCommand: npm run start -w @watool/worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: META_GRAPH_API_VERSION
+        value: v21.0
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ENCRYPTION_KEY # MUST be identical to the web service
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
