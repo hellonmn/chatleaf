@@ -10,7 +10,8 @@
     "verify-webhook": "tsx src/verify-webhook.ts",
     "verify-flow": "tsx src/verify-flow.ts",
     "verify-broadcast": "tsx src/verify-broadcast.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify-limits": "tsx src/verify-limits.ts"
   },
   "dependencies": {
     "@watool/db": "*",

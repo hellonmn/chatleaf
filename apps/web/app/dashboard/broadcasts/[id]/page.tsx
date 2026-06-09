@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
@@ -45,7 +46,9 @@ export default async function BroadcastDetailPage({
       {running && <AutoRefresh seconds={3} />}
 
       <div className="flex items-center gap-2">
-        <Link href="/dashboard/broadcasts" className="text-slate-400 hover:text-slate-600">←</Link>
+        <Link href="/dashboard/broadcasts" className="text-slate-400 hover:text-slate-600">
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
         <h1 className="text-lg font-semibold text-slate-900">{b.template.name}</h1>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
           {b.status.toLowerCase()}

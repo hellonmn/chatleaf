@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@watool/db";
-import { RoleSchema, canManageOrg } from "@watool/types";
+import { RoleSchema, canManageOrg, planLimits } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
@@ -44,6 +44,18 @@ export async function inviteMemberAction(
     where: { orgId: ctx.orgId, user: { email } },
   });
   if (existingMember) return { error: "That person is already a member." };
+
+  // Seat limit (members + outstanding invites) for the current plan.
+  const [members, pendingInvites] = await Promise.all([
+    prisma.membership.count({ where: { orgId: ctx.orgId } }),
+    prisma.invite.count({ where: { orgId: ctx.orgId, acceptedAt: null } }),
+  ]);
+  const seats = planLimits(ctx.plan).seats;
+  if (members + pendingInvites >= seats) {
+    return {
+      error: `Your ${ctx.plan} plan allows ${seats} seat(s). Upgrade in Settings → Billing to invite more.`,
+    };
+  }
 
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000);

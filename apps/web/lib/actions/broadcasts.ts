@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, Prisma } from "@watool/db";
-import { canManageOrg } from "@watool/types";
+import { canManageOrg, planLimits } from "@watool/types";
 import { sendBroadcast } from "@watool/processing";
 import { requireActiveContext } from "@/lib/session";
+import { startOfMonth } from "@/lib/usage";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -74,6 +75,21 @@ export async function sendBroadcastAction(
     return { error: "This broadcast was already sent." };
   }
 
+  // Monthly message quota: outbound already sent this month + this audience.
+  const monthStart = startOfMonth();
+  const [usedThisMonth, audienceSize] = await Promise.all([
+    prisma.message.count({
+      where: { orgId: ctx.orgId, direction: "OUT", createdAt: { gte: monthStart } },
+    }),
+    estimateAudience(ctx.orgId, broadcast.segmentId),
+  ]);
+  const quota = planLimits(ctx.plan).messagesPerMonth;
+  if (usedThisMonth + audienceSize > quota) {
+    return {
+      error: `This send (${audienceSize}) would exceed your ${ctx.plan} monthly limit of ${quota.toLocaleString()} messages (${usedThisMonth.toLocaleString()} used). Upgrade in Settings → Billing.`,
+    };
+  }
+
   try {
     const r = await sendBroadcast(broadcastId);
     revalidatePath(`/dashboard/broadcasts/${broadcastId}`);
@@ -83,6 +99,21 @@ export async function sendBroadcastAction(
     revalidatePath(`/dashboard/broadcasts/${broadcastId}`);
     return { error: err instanceof Error ? err.message : "Failed to send." };
   }
+}
+
+/** Count contacts a broadcast's segment would reach (opt-in + optional tag). */
+async function estimateAudience(orgId: string, segmentId: string | null): Promise<number> {
+  const filter = segmentId
+    ? ((await prisma.segment.findUnique({ where: { id: segmentId } }))
+        ?.filterJSON as { optedInOnly?: boolean; tag?: string } | undefined)
+    : undefined;
+  return prisma.contact.count({
+    where: {
+      orgId,
+      ...(filter?.optedInOnly === false ? {} : { optInStatus: "OPTED_IN" }),
+      ...(filter?.tag ? { contactTags: { some: { tag: { name: filter.tag } } } } : {}),
+    },
+  });
 }
 
 export async function deleteBroadcastAction(formData: FormData): Promise<void> {

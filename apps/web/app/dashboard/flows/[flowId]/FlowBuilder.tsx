@@ -18,6 +18,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { ArrowLeft } from "lucide-react";
 import type { FlowGraph } from "@watool/types";
 import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
 
@@ -265,7 +266,9 @@ function InnerBuilder({
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2">
-          <a href="/dashboard/flows" className="text-slate-400 hover:text-slate-600">←</a>
+          <a href="/dashboard/flows" className="text-slate-400 hover:text-slate-600">
+            <ArrowLeft className="h-5 w-5" />
+          </a>
           <h1 className="text-base font-semibold text-slate-900">{name}</h1>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
             {status.toLowerCase()}

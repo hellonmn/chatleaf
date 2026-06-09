@@ -1,3 +1,4 @@
+import { Smartphone, AlertTriangle } from "lucide-react";
 import { requireActiveContext } from "@/lib/session";
 import { prisma } from "@watool/db";
 import { canManageOrg } from "@watool/types";
@@ -70,14 +71,16 @@ export default async function WhatsAppSettingsPage() {
                   </div>
                   {a.phoneNumbers.length > 0 ? (
                     a.phoneNumbers.map((p) => (
-                      <div key={p.id} className="mt-1 text-slate-600">
-                        📱 {p.displayNumber}{" "}
+                      <div key={p.id} className="mt-1 flex items-center gap-1.5 text-slate-600">
+                        <Smartphone className="h-3.5 w-3.5 text-slate-400" />
+                        {p.displayNumber}
                         <span className="text-slate-400">· id {p.phoneNumberId}</span>
                       </div>
                     ))
                   ) : (
-                    <div className="mt-1 text-amber-600">
-                      ⚠ no phone number linked
+                    <div className="mt-1 flex items-center gap-1.5 text-amber-600">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      no phone number linked
                     </div>
                   )}
                 </div>

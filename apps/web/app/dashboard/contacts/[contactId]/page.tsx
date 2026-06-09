@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, X } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
@@ -8,7 +9,7 @@ import {
   removeAttributeAction,
   setOptInAction,
 } from "@/lib/actions/contacts";
-import { TagForm } from "./TagForm";
+import { ContactTagForm } from "@/components/ContactTagForm";
 import { AttributeForm } from "./AttributeForm";
 
 const OPTIN_OPTIONS = ["UNKNOWN", "OPTED_IN", "OPTED_OUT"] as const;
@@ -43,7 +44,7 @@ export default async function ContactDetailPage({
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/dashboard/contacts" className="text-slate-400 hover:text-slate-600">
-          ←
+          <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-sm font-semibold text-brand-ink">
           {(contact.name ?? contact.waId).slice(0, 2).toUpperCase()}
@@ -96,7 +97,7 @@ export default async function ContactDetailPage({
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900">Tags</h2>
-          <TagForm contactId={contact.id} />
+          <ContactTagForm contactId={contact.id} />
         </div>
         <div className="flex flex-wrap gap-2">
           {contact.contactTags.length === 0 && (
@@ -111,7 +112,9 @@ export default async function ContactDetailPage({
               <form action={removeTagAction} className="inline">
                 <input type="hidden" name="contactId" value={contact.id} />
                 <input type="hidden" name="tagId" value={ct.tagId} />
-                <button className="text-slate-400 hover:text-red-600">×</button>
+                <button className="text-slate-400 hover:text-red-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </form>
             </span>
           ))}
@@ -136,7 +139,9 @@ export default async function ContactDetailPage({
                   <form action={removeAttributeAction} className="inline">
                     <input type="hidden" name="contactId" value={contact.id} />
                     <input type="hidden" name="key" value={k} />
-                    <button className="text-slate-400 hover:text-red-600">×</button>
+                    <button className="text-slate-400 hover:text-red-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
                   </form>
                 </span>
               </div>

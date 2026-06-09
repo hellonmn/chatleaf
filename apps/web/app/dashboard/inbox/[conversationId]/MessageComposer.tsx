@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 import { sendReplyAction, type ActionState } from "@/lib/actions/inbox";
 import { SubmitButton } from "@/components/SubmitButton";
 
@@ -25,10 +26,13 @@ export function MessageComposer({
 
   if (!canSendFreeform) {
     return (
-      <div className="rounded-md bg-amber-50 px-3 py-3 text-sm text-amber-800">
-        ⏳ The 24-hour reply window has closed. Free-form replies aren&apos;t
-        allowed now — an approved <strong>template</strong> is required (coming in
-        Phase 4).
+      <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-3 text-sm text-amber-800">
+        <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          The 24-hour reply window has closed. Free-form replies aren&apos;t
+          allowed now — an approved <strong>template</strong> is required. Use a{" "}
+          <strong>Broadcast</strong> template to re-engage.
+        </span>
       </div>
     );
   }

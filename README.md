@@ -28,6 +28,11 @@ runs published flows on inbound messages — resuming across replies, interpolat
 filter) with live per-recipient delivery stats updated from status webhooks; an
 **Analytics** overview of contacts, conversations, messages, flows, and broadcasts.
 
+**Phase 5 — Plans & usage limits** ✅ — per-plan ceilings (FREE/STARTER/PRO) on
+seats, contacts, monthly messages, and published flows; enforced on invite, publish,
+and broadcast-send; a **Billing** page with usage meters and an instant plan switcher
+(the seam where Stripe Checkout plugs in).
+
 ## Stack
 
 | Layer        | Choice                                   |

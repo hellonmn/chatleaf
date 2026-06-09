@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
@@ -6,6 +7,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { clock } from "@/lib/format";
 import { setConversationStatusAction } from "@/lib/actions/inbox";
 import { MessageComposer } from "./MessageComposer";
+import { ContactPanel } from "./ContactPanel";
 
 function body(payload: unknown, type: string): string {
   const p = payload as { text?: { body?: string } } | null;
@@ -23,7 +25,7 @@ export default async function ConversationPage({
   const convo = await prisma.conversation.findFirst({
     where: { id: conversationId, orgId: ctx.orgId },
     include: {
-      contact: true,
+      contact: { include: { contactTags: { include: { tag: true } } } },
       assignedUser: true,
       messages: { orderBy: { createdAt: "asc" }, take: 200 },
     },
@@ -35,14 +37,15 @@ export default async function ConversationPage({
   const name = convo.contact.name ?? convo.contact.phone ?? convo.contact.waId;
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
+    <div className="flex h-full">
+      <div className="flex min-w-0 flex-1 flex-col">
       <AutoRefresh seconds={5} />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/inbox" className="text-slate-400 hover:text-slate-600">
-            ←
+          <Link href="/dashboard/inbox" className="text-slate-400 hover:text-slate-600 md:hidden">
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="grid h-9 w-9 place-items-center rounded-full bg-brand/10 text-sm font-semibold text-brand-ink">
             {name.slice(0, 2).toUpperCase()}
@@ -90,7 +93,7 @@ export default async function ConversationPage({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 space-y-2 overflow-y-auto py-4">
+      <div className="flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-4">
         {convo.messages.map((m) => {
           const out = m.direction === "OUT";
           return (
@@ -127,9 +130,12 @@ export default async function ConversationPage({
       </div>
 
       {/* Composer */}
-      <div className="border-t border-slate-200 pt-3">
+      <div className="border-t border-slate-200 bg-white p-3">
         <MessageComposer conversationId={convo.id} canSendFreeform={windowOpen} />
       </div>
+      </div>
+
+      <ContactPanel contact={convo.contact} />
     </div>
   );
 }

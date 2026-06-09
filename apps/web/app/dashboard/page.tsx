@@ -1,21 +1,19 @@
 import Link from "next/link";
+import { CheckCircle2, Circle } from "lucide-react";
 import { requireActiveContext } from "@/lib/session";
 import { prisma } from "@watool/db";
 
 export default async function DashboardOverview() {
   const ctx = await requireActiveContext();
 
-  const [memberCount, waAccount] = await Promise.all([
+  const [memberCount, waAccount, publishedFlows] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.whatsAppAccount.findFirst({ where: { orgId: ctx.orgId } }),
+    prisma.flow.count({ where: { orgId: ctx.orgId, status: "PUBLISHED" } }),
   ]);
 
   const steps = [
-    {
-      title: "Workspace created",
-      done: true,
-      desc: `${ctx.orgName} is ready.`,
-    },
+    { title: "Workspace created", done: true, desc: `${ctx.orgName} is ready.` },
     {
       title: "Invite your team",
       done: memberCount > 1,
@@ -32,16 +30,17 @@ export default async function DashboardOverview() {
     },
     {
       title: "Build your first chatbot",
-      done: false,
-      desc: "Coming in Phase 3 — the visual flow builder.",
-      soon: true,
+      done: publishedFlows > 0,
+      desc: "Design a no-code flow on the canvas and publish it.",
+      href: "/dashboard/flows",
+      cta: "Build",
     },
   ];
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-xl font-semibold text-slate-900">
-        Welcome{ctx.name ? `, ${ctx.name.split(" ")[0]}` : ""} 👋
+        Welcome{ctx.name ? `, ${ctx.name.split(" ")[0]}` : ""}
       </h1>
       <p className="mt-1 text-sm text-slate-500">
         Let&apos;s get your WhatsApp chatbot portal set up.
@@ -54,31 +53,20 @@ export default async function DashboardOverview() {
             className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
           >
             <div className="flex items-start gap-3">
-              <span
-                className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs ${
-                  s.done
-                    ? "bg-brand text-white"
-                    : "border border-slate-300 text-slate-400"
-                }`}
-              >
-                {s.done ? "✓" : ""}
-              </span>
+              {s.done ? (
+                <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-brand" />
+              ) : (
+                <Circle className="mt-0.5 h-6 w-6 shrink-0 text-slate-300" />
+              )}
               <div>
-                <div className="text-sm font-medium text-slate-900">
-                  {s.title}
-                  {s.soon && (
-                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
-                      soon
-                    </span>
-                  )}
-                </div>
+                <div className="text-sm font-medium text-slate-900">{s.title}</div>
                 <div className="text-sm text-slate-500">{s.desc}</div>
               </div>
             </div>
             {s.href && !s.done && (
               <Link
                 href={s.href}
-                className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark"
+                className="shrink-0 rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
               >
                 {s.cta}
               </Link>

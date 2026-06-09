@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { auth } from "@/auth";
-import { prisma, type Role } from "@watool/db";
+import { prisma, type Role, type Plan } from "@watool/db";
 
 const ACTIVE_ORG_COOKIE = "watool_active_org";
 
@@ -12,6 +12,7 @@ export type ActiveContext = {
   orgId: string;
   orgName: string;
   orgSlug: string;
+  plan: Plan;
   role: Role;
 };
 
@@ -45,6 +46,7 @@ export async function requireActiveContext(): Promise<ActiveContext> {
     orgId: active.orgId,
     orgName: active.org.name,
     orgSlug: active.org.slug,
+    plan: active.org.plan,
     role: active.role,
   };
 }

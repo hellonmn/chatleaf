@@ -8,6 +8,7 @@ import {
   FlowGraphSchema,
   validateFlowGraph,
   canManageOrg,
+  planLimits,
   type FlowGraph,
 } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
@@ -129,6 +130,22 @@ export async function publishFlowAction(
 
   const problems = validateFlowGraph(parsed.data);
   if (problems.length > 0) return { error: problems[0] };
+
+  // Published-flow limit (don't count this flow if it's already published).
+  const alreadyPublished = await prisma.flow.findFirst({
+    where: { id: flowId, status: "PUBLISHED" },
+  });
+  if (!alreadyPublished) {
+    const publishedCount = await prisma.flow.count({
+      where: { orgId: ctx.orgId, status: "PUBLISHED" },
+    });
+    const limit = planLimits(ctx.plan).publishedFlows;
+    if (publishedCount >= limit) {
+      return {
+        error: `Your ${ctx.plan} plan allows ${limit} published flow(s). Upgrade in Settings → Billing.`,
+      };
+    }
+  }
 
   const versionId = await upsertDraftVersion(flowId, parsed.data);
   const trigger = parsed.data.nodes.find((n) => n.type === "trigger");
