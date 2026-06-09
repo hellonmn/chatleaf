@@ -21,6 +21,9 @@ const nextConfig = {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+      // Server Actions default to a 1 MB body — far too small for media uploads.
+      // Match the 16 MB upload guard in sendMediaReplyAction.
+      bodySizeLimit: "16mb",
     },
   },
 };

@@ -33,6 +33,12 @@ export function MessageComposer({
     if (state?.ok) setText("");
   }, [state?.ok]);
 
+  // Reset the file input once an attempt finishes, so the same file can be
+  // re-selected and the picker is clean for the next upload.
+  useEffect(() => {
+    if (!mediaPending && fileRef.current) fileRef.current.value = "";
+  }, [mediaPending, mediaState]);
+
   if (!canSendFreeform) {
     return (
       <div className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-3 text-sm text-amber-800">
