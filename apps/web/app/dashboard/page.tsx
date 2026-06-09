@@ -39,14 +39,8 @@ export default async function DashboardOverview() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-semibold text-slate-900">
-        Welcome{ctx.name ? `, ${ctx.name.split(" ")[0]}` : ""}
-      </h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Let&apos;s get your WhatsApp chatbot portal set up.
-      </p>
-
-      <div className="mt-6 space-y-3">
+      <h2 className="mb-3 text-sm font-semibold text-sub">Get set up</h2>
+      <div className="space-y-3">
         {steps.map((s) => (
           <div
             key={s.title}

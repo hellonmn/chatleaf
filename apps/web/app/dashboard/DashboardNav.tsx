@@ -17,14 +17,14 @@ import {
 } from "lucide-react";
 
 const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
-  { href: "/dashboard/flows", label: "Flows", icon: Workflow },
   { href: "/dashboard/broadcasts", label: "Broadcasts", icon: Megaphone },
+  { href: "/dashboard/flows", label: "Automations", icon: Workflow },
   { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/dashboard/settings/whatsapp", label: "Channels", icon: MessageCircle },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/settings/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { href: "/dashboard/team", label: "Team", icon: UsersRound },
   { href: "/dashboard/settings/billing", label: "Billing", icon: CreditCard },
 ];
