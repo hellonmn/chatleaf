@@ -157,6 +157,7 @@ model Contact {
   stage        LifecycleStage @default(NEW)
   source       String? // where the lead came from (WhatsApp Ad, Website, Referral…)
   value        Int? // estimated deal value (minor unit-agnostic; shown as currency)
+  notes        String? // free-text internal note shown in the inbox panel
   attributes   Json        @default("{}")
   lastInboundAt DateTime?
   createdAt    DateTime    @default(now())

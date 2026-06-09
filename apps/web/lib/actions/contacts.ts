@@ -57,6 +57,21 @@ export async function setContactFieldsAction(
   return { ok: "Saved." };
 }
 
+/** Save the free-text internal note shown in the inbox contact panel. */
+export async function setContactNotesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return { error: "No permission." };
+  const contactId = String(formData.get("contactId") ?? "");
+  const notes = (formData.get("notes") as string)?.slice(0, 1000) || null;
+  if (!(await ownedContact(ctx.orgId, contactId))) return { error: "Not found." };
+  await prisma.contact.update({ where: { id: contactId }, data: { notes } });
+  revalidatePath(`/dashboard/contacts/${contactId}`);
+  return { ok: "Saved" };
+}
+
 const newContactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   waId: z.string().trim().min(5, "Enter a valid number").max(20),

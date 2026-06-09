@@ -12,7 +12,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const members = await prisma.membership.count({ where: { orgId: ctx.orgId } });
+  const [members, openChats] = await Promise.all([
+    prisma.membership.count({ where: { orgId: ctx.orgId } }),
+    prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
+  ]);
   const seats = planLimits(ctx.plan).seats;
   const pct = Math.min(100, Math.round((members / seats) * 100));
 
@@ -23,7 +26,7 @@ export default async function DashboardLayout({
         <div className="flex items-center px-5 py-4">
           <Wordmark size={24} />
         </div>
-        <DashboardNav />
+        <DashboardNav inboxCount={openChats} />
         <div className="p-3">
           <div className="rounded-card bg-brand-soft p-3 text-center">
             <div className="text-sm font-bold text-brand-ink">
@@ -50,6 +53,7 @@ export default async function DashboardLayout({
           role={ctx.role}
           plan={ctx.plan}
           orgName={ctx.orgName}
+          inboxCount={openChats}
         />
         <main className="flex-1 p-6">{children}</main>
       </div>

@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { clock } from "@/lib/format";
-import { setConversationStatusAction } from "@/lib/actions/inbox";
+import { avatarColor } from "@/lib/avatar";
 import { extractMediaRef } from "@watool/wa";
 import { MediaImage } from "@/components/MediaImage";
 import { MessageComposer } from "./MessageComposer";
 import { ContactPanel } from "./ContactPanel";
+import { ConversationActions } from "./ConversationActions";
 
 function body(payload: unknown, type: string): string {
   const p = payload as { text?: { body?: string } } | null;
@@ -67,6 +68,10 @@ export default async function ConversationPage({
   const windowOpen =
     !!convo.windowExpiresAt && convo.windowExpiresAt.getTime() > Date.now();
   const name = convo.contact.name ?? convo.contact.phone ?? convo.contact.waId;
+  const headColor = avatarColor(name + convo.contact.waId);
+  const assignedTo = convo.assignedUser
+    ? `${convo.assignedUser.name ?? convo.assignedUser.email}${convo.assignedUser.id === ctx.userId ? " (you)" : ""}`
+    : null;
 
   return (
     <div className="flex h-full">
@@ -74,58 +79,45 @@ export default async function ConversationPage({
       <AutoRefresh seconds={5} />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/inbox" className="text-slate-400 hover:text-slate-600 md:hidden">
+          <Link href="/dashboard/inbox" className="text-faint hover:text-ink md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-brand/10 text-sm font-semibold text-brand-ink">
-            {name.slice(0, 2).toUpperCase()}
-          </div>
+          <span className="relative">
+            <span
+              className="grid h-10 w-10 place-items-center rounded-full text-sm font-bold text-white"
+              style={{ background: headColor }}
+            >
+              {name.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#25D366]" />
+          </span>
           <div>
-            <div className="text-sm font-semibold text-slate-900">{name}</div>
-            <div className="text-xs text-slate-500">
-              {convo.contact.waId}
-              {convo.assignedUser ? ` · ${convo.assignedUser.name ?? convo.assignedUser.email}` : ""}
+            <div className="text-sm font-bold text-ink">{name}</div>
+            <div className="flex items-center gap-1.5 text-xs text-sub">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#25D366]" />
+              Online · typically replies in minutes
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-            {convo.status.toLowerCase()}
-          </span>
-          {convo.status !== "AGENT" && (
-            <form action={setConversationStatusAction}>
-              <input type="hidden" name="conversationId" value={convo.id} />
-              <input type="hidden" name="status" value="AGENT" />
-              <button className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100">
-                Take over
-              </button>
-            </form>
-          )}
-          {convo.status === "AGENT" && (
-            <form action={setConversationStatusAction}>
-              <input type="hidden" name="conversationId" value={convo.id} />
-              <input type="hidden" name="status" value="BOT" />
-              <button className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100">
-                Return to bot
-              </button>
-            </form>
-          )}
-          {convo.status !== "CLOSED" && (
-            <form action={setConversationStatusAction}>
-              <input type="hidden" name="conversationId" value={convo.id} />
-              <input type="hidden" name="status" value="CLOSED" />
-              <button className="inline-flex items-center gap-1 rounded-btn bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-ink hover:bg-brand/15">
-                <Check className="h-3.5 w-3.5" /> Resolve
-              </button>
-            </form>
-          )}
-        </div>
+        <ConversationActions conversationId={convo.id} status={convo.status} />
       </div>
 
       {/* Messages */}
-      <div className="flex-1 space-y-2 overflow-y-auto bg-slate-50 px-4 py-4">
+      <div
+        className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
+        style={{
+          backgroundColor: "#f7f9fb",
+          backgroundImage: "radial-gradient(#dce3eb 1px, transparent 1px)",
+          backgroundSize: "18px 18px",
+        }}
+      >
+        <div className="mb-2 flex justify-center">
+          <span className="rounded-pill bg-white/80 px-3 py-1 text-[11px] font-semibold text-faint shadow-sm">
+            Today
+          </span>
+        </div>
         {convo.messages.map((m) => {
           const out = m.direction === "OUT";
           return (
@@ -165,7 +157,7 @@ export default async function ConversationPage({
       </div>
       </div>
 
-      <ContactPanel contact={convo.contact} />
+      <ContactPanel contact={convo.contact} assignedTo={assignedTo} />
     </div>
   );
 }

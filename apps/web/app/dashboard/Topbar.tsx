@@ -42,12 +42,14 @@ export function Topbar({
   role,
   plan,
   orgName,
+  inboxCount = 0,
 }: {
   name: string | null;
   email: string;
   role: string;
   plan: string;
   orgName: string;
+  inboxCount?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -70,6 +72,17 @@ export function Topbar({
       .sort((a, b) => b.length - a.length)[0];
     meta = key ? META[key]! : greeting(name);
   }
+  if (pathname.startsWith("/dashboard/inbox")) {
+    meta = {
+      title: "Inbox",
+      subtitle:
+        inboxCount > 0
+          ? `${inboxCount} open conversation${inboxCount === 1 ? "" : "s"} need${inboxCount === 1 ? "s" : ""} a reply`
+          : "You're all caught up",
+    };
+  }
+
+  const orgInitials = initials(null, orgName);
 
   return (
     <header className="flex items-center justify-between gap-4 border-b border-line bg-white/80 px-6 py-3.5 backdrop-blur">
@@ -80,8 +93,15 @@ export function Topbar({
         <p className="truncate text-sm text-sub">{meta.subtitle}</p>
       </div>
 
-      {/* Bell + user profile menu (no workspace switcher) */}
+      {/* Workspace + bell + profile */}
       <div className="flex shrink-0 items-center gap-2">
+      <div className="hidden items-center gap-2 rounded-card border border-line bg-white px-2.5 py-1.5 sm:flex">
+        <span className="grid h-6 w-6 place-items-center rounded-md bg-brand text-[11px] font-bold text-white">
+          {orgInitials}
+        </span>
+        <span className="max-w-[130px] truncate text-sm font-semibold text-ink">{orgName}</span>
+        <ChevronDown className="h-4 w-4 text-faint" />
+      </div>
       <button
         type="button"
         title="Notifications"
