@@ -46,6 +46,11 @@ code for a token, subscribes the WABA's webhooks, and stores the number (token
 encrypted). Enabled by setting `NEXT_PUBLIC_META_APP_ID` + `NEXT_PUBLIC_META_CONFIG_ID`
 (requires a Meta Tech-Provider app); manual token paste remains as the fallback.
 
+**Media messages** ✅ — inbound images/video/audio/documents render in the inbox
+(streamed through an authenticated proxy, so no S3 needed for dev); agents attach &
+send files from the composer (uploaded to Meta then sent); flow **Send message** nodes
+can send media by public URL. All window-gated.
+
 ## Stack
 
 | Layer        | Choice                                   |

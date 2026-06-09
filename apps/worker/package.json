@@ -14,7 +14,8 @@
     "verify-limits": "tsx src/verify-limits.ts",
     "verify-embedded": "tsx src/verify-embedded.ts",
     "verify-ai": "tsx src/verify-ai.ts",
-    "test": "tsx --test src/units.test.ts"
+    "test": "tsx --test src/units.test.ts",
+    "verify-media": "tsx src/verify-media.ts"
   },
   "dependencies": {
     "@watool/db": "*",

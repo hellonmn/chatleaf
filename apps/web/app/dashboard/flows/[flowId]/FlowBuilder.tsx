@@ -441,7 +441,38 @@ function ConfigPanel({
       {kind === "sendMessage" && (
         <>
           <div>
-            <label className={lbl}>Message text</label>
+            <label className={lbl}>Message type</label>
+            <select
+              className={inp}
+              value={["image", "document", "video"].includes(data.bodyType) ? data.bodyType : "text"}
+              onChange={(e) => onChange({ bodyType: e.target.value })}
+            >
+              <option value="text">Text</option>
+              <option value="image">Image</option>
+              <option value="document">Document</option>
+              <option value="video">Video</option>
+            </select>
+          </div>
+          {["image", "document", "video"].includes(data.bodyType) && (
+            <div>
+              <label className={lbl}>Media URL (public link)</label>
+              <input
+                className={inp}
+                placeholder="https://example.com/file.jpg"
+                value={data.mediaUrl ?? ""}
+                onChange={(e) => onChange({ mediaUrl: e.target.value || undefined })}
+              />
+              <p className="text-[10px] text-slate-400">
+                A public HTTPS URL Meta can fetch (no auth).
+              </p>
+            </div>
+          )}
+          <div>
+            <label className={lbl}>
+              {["image", "document", "video"].includes(data.bodyType)
+                ? "Caption (optional)"
+                : "Message text"}
+            </label>
             <textarea
               className={inp}
               rows={4}

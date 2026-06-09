@@ -30,7 +30,18 @@ const InboundMessageSchema = z.object({
   timestamp: z.string(),
   type: z.string(), // text | image | interactive | button | ...
   text: z.object({ body: z.string() }).optional(),
-  image: z.object({ id: z.string(), mime_type: z.string().optional() }).optional(),
+  image: z.object({ id: z.string(), mime_type: z.string().optional(), caption: z.string().optional() }).optional(),
+  video: z.object({ id: z.string(), mime_type: z.string().optional(), caption: z.string().optional() }).optional(),
+  audio: z.object({ id: z.string(), mime_type: z.string().optional() }).optional(),
+  document: z
+    .object({
+      id: z.string(),
+      mime_type: z.string().optional(),
+      filename: z.string().optional(),
+      caption: z.string().optional(),
+    })
+    .optional(),
+  sticker: z.object({ id: z.string(), mime_type: z.string().optional() }).optional(),
   interactive: z
     .object({
       type: z.string(),

@@ -224,7 +224,10 @@ async function sendNode(
   state: Record<string, unknown>,
 ): Promise<void> {
   const text = interpolate(node.data.text, state, ctx.contact.attributes);
-  if (node.data.bodyType === "buttons" && node.data.buttons.length > 0) {
+  const bt = node.data.bodyType;
+  if ((bt === "image" || bt === "document" || bt === "video") && node.data.mediaUrl) {
+    await sendMedia(ctx, client, bt, node.data.mediaUrl, text || undefined);
+  } else if (bt === "buttons" && node.data.buttons.length > 0) {
     await sendButtons(
       ctx,
       client,
@@ -233,6 +236,35 @@ async function sendNode(
     );
   } else {
     await send(ctx, client, text);
+  }
+}
+
+/** Send media by public link (flow sendMessage node) + persist. Window-aware. */
+async function sendMedia(
+  ctx: EngineContext,
+  client: WhatsAppClient,
+  kind: "image" | "document" | "video",
+  link: string,
+  caption: string | undefined,
+): Promise<void> {
+  const out = await prisma.message.create({
+    data: {
+      orgId: ctx.orgId,
+      conversationId: ctx.conversation.id,
+      direction: "OUT",
+      type: kind,
+      payload: { [kind]: { link }, ...(caption ? { caption } : {}), viaFlow: true },
+      status: "QUEUED",
+    },
+  });
+  try {
+    const r = await client.sendMediaByLink(ctx.contact.waId, kind, link, caption, ctx.conversation.windowExpiresAt);
+    await prisma.message.update({ where: { id: out.id }, data: { waMessageId: r.waMessageId, status: "SENT" } });
+  } catch (err) {
+    await prisma.message.update({
+      where: { id: out.id },
+      data: { status: "FAILED", errorJSON: { message: err instanceof Error ? err.message : String(err) } },
+    });
   }
 }
 

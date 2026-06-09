@@ -160,6 +160,34 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
       });
     },
 
+    /** Send media (image/document/video/audio) by an uploaded media ID. Window-gated. */
+    async sendMediaById(
+      to: string,
+      kind: "image" | "document" | "video" | "audio",
+      mediaId: string,
+      caption: string | undefined,
+      windowExpiresAt: Date | null | undefined,
+    ): Promise<SendResult> {
+      if (!isWindowOpen(windowExpiresAt)) throw new WindowClosedError();
+      const media: Record<string, unknown> = { id: mediaId };
+      if (caption && kind !== "audio") media.caption = caption;
+      return post({ to, type: kind, [kind]: media });
+    },
+
+    /** Send media by a public link (used by flow sendMessage nodes). Window-gated. */
+    async sendMediaByLink(
+      to: string,
+      kind: "image" | "document" | "video" | "audio",
+      link: string,
+      caption: string | undefined,
+      windowExpiresAt: Date | null | undefined,
+    ): Promise<SendResult> {
+      if (!isWindowOpen(windowExpiresAt)) throw new WindowClosedError();
+      const media: Record<string, unknown> = { link };
+      if (caption && kind !== "audio") media.caption = caption;
+      return post({ to, type: kind, [kind]: media });
+    },
+
     /**
      * Approved template — the ONLY thing allowed outside the 24h window
      * (and required for business-initiated messages / broadcasts).

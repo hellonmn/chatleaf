@@ -6,12 +6,44 @@ import { requireActiveContext } from "@/lib/session";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { clock } from "@/lib/format";
 import { setConversationStatusAction } from "@/lib/actions/inbox";
+import { extractMediaRef } from "@watool/wa";
 import { MessageComposer } from "./MessageComposer";
 import { ContactPanel } from "./ContactPanel";
 
 function body(payload: unknown, type: string): string {
   const p = payload as { text?: { body?: string } } | null;
   return p?.text?.body ?? `[${type}]`;
+}
+
+/** Render an image/video/audio/document via the auth'd media proxy, else text. */
+function MessageContent({ m }: { m: { id: string; payload: unknown; type: string } }) {
+  const ref = extractMediaRef(m.payload);
+  if (!ref) {
+    return <div className="whitespace-pre-wrap break-words">{body(m.payload, m.type)}</div>;
+  }
+  const src = ref.link ?? `/api/media/${m.id}`;
+  return (
+    <div className="space-y-1">
+      {ref.kind === "image" || ref.kind === "sticker" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={ref.caption ?? "image"} className="max-h-64 rounded-lg" />
+      ) : ref.kind === "video" ? (
+        <video src={src} controls className="max-h-64 rounded-lg" />
+      ) : ref.kind === "audio" ? (
+        <audio src={src} controls className="w-full" />
+      ) : (
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 rounded-md bg-black/5 px-2 py-1 text-xs underline"
+        >
+          📄 {ref.filename ?? "Document"}
+        </a>
+      )}
+      {ref.caption && <div className="whitespace-pre-wrap break-words">{ref.caption}</div>}
+    </div>
+  );
 }
 
 export default async function ConversationPage({
@@ -105,9 +137,7 @@ export default async function ConversationPage({
                     : "rounded-bl-sm bg-white text-slate-800 shadow-sm"
                 }`}
               >
-                <div className="whitespace-pre-wrap break-words">
-                  {body(m.payload, m.type)}
-                </div>
+                <MessageContent m={m} />
                 <div
                   className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
                     out ? "text-white/70" : "text-slate-400"
