@@ -11,7 +11,8 @@
     "verify-flow": "tsx src/verify-flow.ts",
     "verify-broadcast": "tsx src/verify-broadcast.ts",
     "typecheck": "tsc --noEmit",
-    "verify-limits": "tsx src/verify-limits.ts"
+    "verify-limits": "tsx src/verify-limits.ts",
+    "verify-embedded": "tsx src/verify-embedded.ts"
   },
   "dependencies": {
     "@watool/db": "*",

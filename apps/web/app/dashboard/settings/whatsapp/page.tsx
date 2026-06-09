@@ -4,6 +4,7 @@ import { prisma } from "@watool/db";
 import { canManageOrg } from "@watool/types";
 import { getRequestBaseUrl } from "@/lib/base-url";
 import { disconnectWhatsAppAction, type ConnectValues } from "@/lib/actions/whatsapp";
+import { EmbeddedSignup } from "@/components/EmbeddedSignup";
 import { ConnectForm } from "./ConnectForm";
 
 export default async function WhatsAppSettingsPage() {
@@ -30,6 +31,9 @@ export default async function WhatsAppSettingsPage() {
   const webhookUrl = `${baseUrl}/api/webhooks/whatsapp`;
   const verifyToken =
     process.env.META_WEBHOOK_VERIFY_TOKEN ?? "(set META_WEBHOOK_VERIFY_TOKEN)";
+
+  const embeddedConfigured =
+    !!process.env.NEXT_PUBLIC_META_APP_ID && !!process.env.NEXT_PUBLIC_META_CONFIG_ID;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -134,11 +138,35 @@ export default async function WhatsAppSettingsPage() {
         </dl>
       </section>
 
-      {/* Connect / update form */}
+      {/* Embedded Signup — one-click connect via Facebook */}
+      {manage && embeddedConfigured && (
+        <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-900">Connect with Facebook</h2>
+          <p className="mb-3 mt-0.5 text-xs text-slate-500">
+            Authorize in a popup and pick (or create) your WhatsApp Business
+            number — no IDs or tokens to copy. We subscribe the webhook for you.
+          </p>
+          <EmbeddedSignup />
+        </section>
+      )}
+
+      {/* Manual connect (fallback / when Embedded Signup isn't configured) */}
       <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">
-          {primary ? "Update credentials" : "Connect a number"}
+        <h2 className="mb-1 text-sm font-semibold text-slate-900">
+          {embeddedConfigured
+            ? "Or connect manually"
+            : primary
+              ? "Update credentials"
+              : "Connect a number"}
         </h2>
+        {!embeddedConfigured && (
+          <p className="mb-3 text-xs text-slate-500">
+            Paste your WABA id, phone number id, and access token from the Meta
+            dashboard. (Set <code>NEXT_PUBLIC_META_APP_ID</code> +{" "}
+            <code>NEXT_PUBLIC_META_CONFIG_ID</code> to enable one-click Facebook
+            signup instead.)
+          </p>
+        )}
         {manage ? (
           <ConnectForm defaults={defaults} hasToken={!!primary?.accessTokenEnc} />
         ) : (

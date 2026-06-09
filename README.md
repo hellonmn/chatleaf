@@ -33,6 +33,12 @@ seats, contacts, monthly messages, and published flows; enforced on invite, publ
 and broadcast-send; a **Billing** page with usage meters and an instant plan switcher
 (the seam where Stripe Checkout plugs in).
 
+**Embedded Signup** ✅ — one-click **"Connect with Facebook"** on Settings → WhatsApp:
+the customer authorizes in a popup and picks their number; the server exchanges the
+code for a token, subscribes the WABA's webhooks, and stores the number (token
+encrypted). Enabled by setting `NEXT_PUBLIC_META_APP_ID` + `NEXT_PUBLIC_META_CONFIG_ID`
+(requires a Meta Tech-Provider app); manual token paste remains as the fallback.
+
 ## Stack
 
 | Layer        | Choice                                   |
