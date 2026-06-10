@@ -13,7 +13,41 @@ import { createWhatsAppClient, decryptSecret } from "@watool/wa";
  * In dev this runs inline; at scale it belongs on the BullMQ broadcast worker
  * with per-number rate limiting. The structure here is queue-ready.
  */
-export type AudienceFilter = { optedInOnly?: boolean; tag?: string };
+export type AudienceFilter = {
+  optedInOnly?: boolean;
+  /** Match contacts having ANY of these tags. */
+  tags?: string[];
+  /** Lifecycle stages to include. */
+  stages?: string[];
+  /** Exact acquisition source. */
+  source?: string;
+  /** Only contacts with an inbound message within the last N days. */
+  lastActiveDays?: number;
+  /** Legacy single-tag field (kept working for older segments). */
+  tag?: string;
+};
+
+/** Translate an AudienceFilter into a Prisma contact `where` clause. Shared by
+ *  the sender and the live audience estimate so they always agree. */
+export function audienceWhere(
+  orgId: string,
+  filter: AudienceFilter | undefined,
+): Prisma.ContactWhereInput {
+  const f = filter ?? {};
+  const where: Prisma.ContactWhereInput = { orgId };
+
+  // Opt-in is enforced unless explicitly disabled.
+  if (f.optedInOnly !== false) where.optInStatus = "OPTED_IN";
+
+  const tags = f.tags && f.tags.length ? f.tags : f.tag ? [f.tag] : [];
+  if (tags.length) where.contactTags = { some: { tag: { name: { in: tags } } } };
+  if (f.stages && f.stages.length) where.stage = { in: f.stages as any };
+  if (f.source) where.source = f.source;
+  if (f.lastActiveDays && f.lastActiveDays > 0) {
+    where.lastInboundAt = { gte: new Date(Date.now() - f.lastActiveDays * 86_400_000) };
+  }
+  return where;
+}
 
 export async function sendBroadcast(
   broadcastId: string,
@@ -41,11 +75,7 @@ export async function sendBroadcast(
 
   const filter = (b.segment?.filterJSON as AudienceFilter) ?? { optedInOnly: true };
   const contacts = await prisma.contact.findMany({
-    where: {
-      orgId: b.orgId,
-      ...(filter.optedInOnly === false ? {} : { optInStatus: "OPTED_IN" }),
-      ...(filter.tag ? { contactTags: { some: { tag: { name: filter.tag } } } } : {}),
-    },
+    where: audienceWhere(b.orgId, filter),
   });
 
   await prisma.broadcast.update({ where: { id: b.id }, data: { status: "RUNNING" } });

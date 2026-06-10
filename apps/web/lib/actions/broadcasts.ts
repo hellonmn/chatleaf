@@ -5,33 +5,52 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, Prisma } from "@watool/db";
 import { canManageOrg, planLimits } from "@watool/types";
-import { sendBroadcast } from "@watool/processing";
+import { sendBroadcast, audienceWhere, type AudienceFilter } from "@watool/processing";
 import { requireActiveContext } from "@/lib/session";
 import { startOfMonth } from "@/lib/usage";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
-const createSchema = z.object({
-  templateId: z.string().min(1, "Pick a template"),
-  optedInOnly: z.enum(["true", "false"]).default("true"),
-  tag: z.string().trim().optional(),
+const filterSchema = z.object({
+  optedInOnly: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  stages: z.array(z.enum(["NEW", "QUALIFIED", "ENGAGED", "CONVERTED"])).optional(),
+  source: z.string().trim().optional(),
+  lastActiveDays: z.number().int().nonnegative().optional(),
 });
+
+function parseFilter(raw: FormDataEntryValue | null): AudienceFilter {
+  if (typeof raw !== "string" || !raw.trim()) return { optedInOnly: true };
+  try {
+    const parsed = filterSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : { optedInOnly: true };
+  } catch {
+    return { optedInOnly: true };
+  }
+}
+
+/** Live audience size for the segment builder (called from the client). */
+export async function estimateAudienceAction(filter: AudienceFilter): Promise<number> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) return 0;
+  const safe = filterSchema.safeParse(filter);
+  return prisma.contact.count({
+    where: audienceWhere(ctx.orgId, safe.success ? safe.data : { optedInOnly: true }),
+  });
+}
 
 /** Create a broadcast (DRAFT) with an audience segment, then open its page. */
 export async function createBroadcastAction(formData: FormData): Promise<void> {
   const ctx = await requireActiveContext();
   if (!canManageOrg(ctx.role)) return;
 
-  const parsed = createSchema.safeParse({
-    templateId: formData.get("templateId"),
-    optedInOnly: formData.get("optedInOnly") ?? "true",
-    tag: formData.get("tag") || undefined,
-  });
-  if (!parsed.success) return;
+  const templateId = String(formData.get("templateId") ?? "");
+  if (!templateId) return;
+  const filter = parseFilter(formData.get("filter"));
 
   // Template must be an approved template belonging to this org.
   const template = await prisma.template.findFirst({
-    where: { id: parsed.data.templateId, orgId: ctx.orgId },
+    where: { id: templateId, orgId: ctx.orgId },
   });
   if (!template) return;
 
@@ -39,10 +58,7 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
     data: {
       orgId: ctx.orgId,
       name: `Audience for ${template.name}`,
-      filterJSON: {
-        optedInOnly: parsed.data.optedInOnly === "true",
-        ...(parsed.data.tag ? { tag: parsed.data.tag } : {}),
-      } as Prisma.InputJsonValue,
+      filterJSON: filter as Prisma.InputJsonValue,
     },
   });
 
@@ -101,19 +117,14 @@ export async function sendBroadcastAction(
   }
 }
 
-/** Count contacts a broadcast's segment would reach (opt-in + optional tag). */
+/** Count contacts a broadcast's segment would reach. */
 async function estimateAudience(orgId: string, segmentId: string | null): Promise<number> {
   const filter = segmentId
-    ? ((await prisma.segment.findUnique({ where: { id: segmentId } }))
-        ?.filterJSON as { optedInOnly?: boolean; tag?: string } | undefined)
+    ? ((await prisma.segment.findUnique({ where: { id: segmentId } }))?.filterJSON as
+        | AudienceFilter
+        | undefined)
     : undefined;
-  return prisma.contact.count({
-    where: {
-      orgId,
-      ...(filter?.optedInOnly === false ? {} : { optInStatus: "OPTED_IN" }),
-      ...(filter?.tag ? { contactTags: { some: { tag: { name: filter.tag } } } } : {}),
-    },
-  });
+  return prisma.contact.count({ where: audienceWhere(orgId, filter) });
 }
 
 export async function deleteBroadcastAction(formData: FormData): Promise<void> {
@@ -121,5 +132,45 @@ export async function deleteBroadcastAction(formData: FormData): Promise<void> {
   if (!canManageOrg(ctx.role)) return;
   const id = String(formData.get("broadcastId") ?? "");
   await prisma.broadcast.deleteMany({ where: { id, orgId: ctx.orgId } });
+  revalidatePath("/dashboard/broadcasts");
+}
+
+/** Schedule a broadcast to auto-send later (the cron endpoint dispatches it). */
+export async function scheduleBroadcastAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) return { error: "No permission." };
+
+  const broadcastId = String(formData.get("broadcastId") ?? "");
+  const iso = String(formData.get("scheduleAt") ?? "");
+  const when = new Date(iso);
+  if (!iso || Number.isNaN(when.getTime())) return { error: "Pick a valid date & time." };
+  if (when.getTime() < Date.now() + 60_000) return { error: "Pick a time at least a minute from now." };
+
+  const b = await prisma.broadcast.findFirst({ where: { id: broadcastId, orgId: ctx.orgId } });
+  if (!b) return { error: "Broadcast not found." };
+  if (b.status === "RUNNING" || b.status === "COMPLETED") return { error: "This broadcast was already sent." };
+
+  await prisma.broadcast.update({
+    where: { id: b.id },
+    data: { status: "SCHEDULED", scheduleAt: when },
+  });
+  revalidatePath(`/dashboard/broadcasts/${b.id}`);
+  revalidatePath("/dashboard/broadcasts");
+  return { ok: "Scheduled." };
+}
+
+/** Cancel a pending schedule (back to DRAFT). */
+export async function cancelScheduleAction(formData: FormData): Promise<void> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) return;
+  const id = String(formData.get("broadcastId") ?? "");
+  await prisma.broadcast.updateMany({
+    where: { id, orgId: ctx.orgId, status: "SCHEDULED" },
+    data: { status: "DRAFT", scheduleAt: null },
+  });
+  revalidatePath(`/dashboard/broadcasts/${id}`);
   revalidatePath("/dashboard/broadcasts");
 }

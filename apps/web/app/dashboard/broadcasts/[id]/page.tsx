@@ -6,7 +6,27 @@ import { requireActiveContext } from "@/lib/session";
 import { canManageOrg } from "@watool/types";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { deleteBroadcastAction } from "@/lib/actions/broadcasts";
-import { SendButton } from "./SendButton";
+import { SendControls } from "./SendControls";
+
+type AudFilter = {
+  optedInOnly?: boolean;
+  tags?: string[];
+  stages?: string[];
+  source?: string;
+  lastActiveDays?: number;
+  tag?: string;
+};
+
+function audienceSummary(f: AudFilter): string {
+  const parts: string[] = [];
+  const tags = f.tags?.length ? f.tags : f.tag ? [f.tag] : [];
+  if (tags.length) parts.push(`tagged ${tags.join(", ")}`);
+  if (f.stages?.length) parts.push(f.stages.map((s) => s.toLowerCase()).join("/"));
+  if (f.source) parts.push(`from ${f.source}`);
+  if (f.lastActiveDays) parts.push(`active ≤${f.lastActiveDays}d`);
+  const base = parts.length ? parts.join(" · ") : "all contacts";
+  return f.optedInOnly === false ? base : `${base} (opted-in)`;
+}
 
 const RECIPIENT_STYLE: Record<string, string> = {
   read: "text-emerald-700",
@@ -35,7 +55,7 @@ export default async function BroadcastDetailPage({
   if (!b) notFound();
 
   const manage = canManageOrg(ctx.role);
-  const filter = (b.segment?.filterJSON as { tag?: string; optedInOnly?: boolean }) ?? {};
+  const filter = (b.segment?.filterJSON as AudFilter) ?? {};
   const counts = b.recipients.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
     return acc;
@@ -64,7 +84,7 @@ export default async function BroadcastDetailPage({
         </div>
         <div>
           <div className="text-xs uppercase tracking-wide text-slate-400">Audience</div>
-          <div className="text-slate-900">{filter.tag ? `tag: ${filter.tag}` : "all opted-in"}</div>
+          <div className="text-slate-900">{audienceSummary(filter)}</div>
         </div>
         <div>
           <div className="text-xs uppercase tracking-wide text-slate-400">Recipients</div>
@@ -98,10 +118,13 @@ export default async function BroadcastDetailPage({
         <section className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="mb-1 text-sm font-semibold text-slate-900">Send this broadcast</h2>
           <p className="mb-3 text-xs text-slate-500">
-            Goes to opted-in contacts{filter.tag ? ` tagged "${filter.tag}"` : ""} using
-            the <strong>{b.template.name}</strong> template.
+            Goes to <strong>{audienceSummary(filter)}</strong> using the <strong>{b.template.name}</strong> template.
           </p>
-          <SendButton broadcastId={b.id} />
+          <SendControls
+            broadcastId={b.id}
+            status={b.status}
+            scheduleAt={b.scheduleAt ? b.scheduleAt.toISOString() : null}
+          />
         </section>
       )}
 
