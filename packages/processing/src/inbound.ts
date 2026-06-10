@@ -155,16 +155,50 @@ async function handleInboundMessage(
     `[inbound] from ${msg.from} (org ${orgId}): ${inboundText ?? `[${msg.type}]`}`,
   );
 
+  // Decrypt the access token once for the engine + auto-replies.
+  const tokenEnc = phoneNumber.account.accessTokenEnc;
+  const accessToken = tokenEnc ? decryptSecret(tokenEnc) : null;
+
+  // Honour STOP/START first — even mid-agent-chat, a customer must always be
+  // able to unsubscribe. This drives the opt-in filter used by broadcasts.
+  const optKeyword = detectOptKeyword(inboundText);
+  if (optKeyword) {
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: { optInStatus: optKeyword === "out" ? "OPTED_OUT" : "OPTED_IN" },
+    });
+    if (accessToken) {
+      const reply =
+        optKeyword === "out"
+          ? "You've been unsubscribed and won't receive further messages from us. Reply START to opt back in."
+          : "You're subscribed again. 🌿 Thanks — we'll keep you posted!";
+      await sendAutoReply(
+        orgId,
+        phoneNumber.phoneNumberId,
+        accessToken,
+        conversation,
+        msg,
+        reply,
+        optKeyword === "out" ? "optOut" : "optIn",
+      );
+    }
+    return;
+  }
+
+  // First inbound from an unknown contact = implicit opt-in for service messages.
+  if (contact.optInStatus === "UNKNOWN") {
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: { optInStatus: "OPTED_IN" },
+    });
+  }
+
   // A human has taken over → bot stays quiet.
   if (conversation.status === "AGENT") return;
-
-  // Decrypt the access token once for both the engine and the fallback reply.
-  const tokenEnc = phoneNumber.account.accessTokenEnc;
-  if (!tokenEnc) {
+  if (!accessToken) {
     console.warn(`[inbound] no access token stored for ${phoneNumber.phoneNumberId}; skip reply`);
     return;
   }
-  const accessToken = decryptSecret(tokenEnc);
 
   // Run published flows: resume an active run, or match a trigger.
   const { handled } = await runFlowsForInbound({
@@ -184,11 +218,154 @@ async function handleInboundMessage(
     inboundText,
   });
 
-  // Nothing matched → fall back to the default hello (keeps the connectivity
-  // demo working before any flow is published).
+  // Nothing matched. If the business is outside its hours and the away
+  // auto-reply is on, send that; otherwise fall back to the default hello.
   if (!handled) {
-    await sendHelloReply(orgId, phoneNumber.phoneNumberId, accessToken, conversation, msg);
+    const settings = await prisma.orgSettings.findUnique({ where: { orgId } });
+    const sentAway = await maybeSendAwayReply(
+      orgId,
+      settings,
+      phoneNumber.phoneNumberId,
+      accessToken,
+      conversation,
+      msg,
+    );
+    if (!sentAway) {
+      await sendHelloReply(orgId, phoneNumber.phoneNumberId, accessToken, conversation, msg);
+    }
   }
+}
+
+// ── STOP / START opt-out handling ───────────────────────────────────────────
+
+const STOP_WORDS = new Set(["stop", "unsubscribe", "unsub", "optout", "opt out"]);
+const START_WORDS = new Set(["start", "subscribe", "unstop", "resume", "optin", "opt in"]);
+
+/** Detect a whole-message opt-out / opt-in keyword (avoids matching "stop by…"). */
+function detectOptKeyword(text: string | undefined): "out" | "in" | null {
+  if (!text) return null;
+  const t = text.trim().toLowerCase().replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
+  if (STOP_WORDS.has(t)) return "out";
+  if (START_WORDS.has(t)) return "in";
+  return null;
+}
+
+/** Send a one-off system reply (opt-out/opt-in confirmation) and persist it. */
+async function sendAutoReply(
+  orgId: string,
+  phoneNumberId: string,
+  accessToken: string,
+  conversation: { id: string; windowExpiresAt: Date | null },
+  inbound: InboundMessage,
+  text: string,
+  flag: "optOut" | "optIn",
+): Promise<void> {
+  const client = createWhatsAppClient({ phoneNumberId, accessToken });
+  const out = await prisma.message.create({
+    data: {
+      orgId,
+      conversationId: conversation.id,
+      direction: "OUT",
+      type: "text",
+      payload: { text: { body: text }, [flag]: true },
+      status: "QUEUED",
+    },
+  });
+  try {
+    await client.markRead(inbound.id);
+    const r = await client.sendText(inbound.from, text, conversation.windowExpiresAt);
+    await prisma.message.update({ where: { id: out.id }, data: { waMessageId: r.waMessageId, status: "SENT" } });
+  } catch (err) {
+    await prisma.message.update({
+      where: { id: out.id },
+      data: { status: "FAILED", errorJSON: { message: err instanceof Error ? err.message : String(err) } },
+    });
+  }
+}
+
+// ── Business hours + away auto-reply ────────────────────────────────────────
+
+type DayCfg = { enabled?: boolean; open?: string; close?: string };
+type Hours = Record<string, DayCfg>;
+type OrgHoursSettings = {
+  awayEnabled: boolean;
+  awayMessage: string;
+  timezone: string;
+  hoursJSON: unknown;
+} | null;
+
+/** Is "now" inside the org's configured open hours (in its timezone)? */
+function isWithinBusinessHours(timezone: string, hours: Hours): boolean {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone || "UTC",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const wd = (parts.find((p) => p.type === "weekday")?.value ?? "").toLowerCase().slice(0, 3);
+    let hh = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const mm = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    if (hh === 24) hh = 0;
+
+    const day = hours[wd];
+    if (!day || !day.enabled || !day.open || !day.close) return false;
+    const cur = hh * 60 + mm;
+    const [oH, oM] = day.open.split(":").map(Number);
+    const [cH, cM] = day.close.split(":").map(Number);
+    return cur >= oH! * 60 + oM! && cur < cH! * 60 + cM!;
+  } catch {
+    return true; // on any timezone error, assume open (never wrongly auto-away)
+  }
+}
+
+/** Send the away message if configured + outside hours, rate-limited to once
+ *  per 6h per conversation. Returns true if an away reply was sent. */
+async function maybeSendAwayReply(
+  orgId: string,
+  settings: OrgHoursSettings,
+  phoneNumberId: string,
+  accessToken: string,
+  conversation: { id: string; windowExpiresAt: Date | null },
+  inbound: InboundMessage,
+): Promise<boolean> {
+  if (!settings?.awayEnabled) return false;
+  const hours = (settings.hoursJSON as Hours) ?? {};
+  if (isWithinBusinessHours(settings.timezone, hours)) return false;
+
+  const recent = await prisma.message.findFirst({
+    where: {
+      conversationId: conversation.id,
+      direction: "OUT",
+      createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent && (recent.payload as { autoAway?: boolean })?.autoAway) return false;
+
+  const client = createWhatsAppClient({ phoneNumberId, accessToken });
+  const out = await prisma.message.create({
+    data: {
+      orgId,
+      conversationId: conversation.id,
+      direction: "OUT",
+      type: "text",
+      payload: { text: { body: settings.awayMessage }, autoAway: true },
+      status: "QUEUED",
+    },
+  });
+  try {
+    await client.markRead(inbound.id);
+    const r = await client.sendText(inbound.from, settings.awayMessage, conversation.windowExpiresAt);
+    await prisma.message.update({ where: { id: out.id }, data: { waMessageId: r.waMessageId, status: "SENT" } });
+  } catch (err) {
+    await prisma.message.update({
+      where: { id: out.id },
+      data: { status: "FAILED", errorJSON: { message: err instanceof Error ? err.message : String(err) } },
+    });
+  }
+  return true;
 }
 
 async function sendHelloReply(

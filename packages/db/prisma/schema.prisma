@@ -47,6 +47,7 @@ model Org {
   flowRuns         FlowRun[]
   broadcasts       Broadcast[]
   savedReplies     SavedReply[]
+  settings         OrgSettings?
 }
 
 model User {
@@ -206,6 +207,21 @@ model Segment {
   broadcasts Broadcast[]
 
   @@index([orgId])
+}
+
+/// Per-org operating hours + away auto-reply. One row per org (lazy-created).
+/// `hoursJSON` shape: { mon: { enabled: bool, open: "09:00", close: "18:00" }, … }
+model OrgSettings {
+  id          String   @id @default(cuid())
+  orgId       String   @unique
+  timezone    String   @default("Asia/Kolkata")
+  awayEnabled Boolean  @default(false)
+  awayMessage String   @default("Thanks for your message! 🌿 Our team is away right now — we'll get back to you during business hours.")
+  hoursJSON   Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 /// Reusable canned responses agents can insert in the inbox (optionally via a
