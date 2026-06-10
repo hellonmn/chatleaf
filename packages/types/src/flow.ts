@@ -61,6 +61,8 @@ const AskQuestionData = z.object({
   regex: z.string().optional(),
   /** Re-ask message if validation fails. */
   retryMessage: z.string().optional(),
+  /** Optional quick-reply buttons; tapping one fills the answer. */
+  buttons: z.array(MessageButton).max(3).default([]),
 });
 
 const ConditionRule = z.object({
@@ -165,6 +167,18 @@ export function validateFlowGraph(graph: FlowGraph): string[] {
   const triggers = graph.nodes.filter((n) => n.type === "trigger");
   if (triggers.length === 0) problems.push("Flow has no trigger node.");
   if (triggers.length > 1) problems.push("Flow has more than one trigger node.");
+
+  // A keyword trigger with no keywords can never match an inbound message, so the
+  // flow would publish but silently never run. Catch it here with a clear message.
+  const trig = triggers[0];
+  if (trig && trig.type === "trigger") {
+    const d = trig.data;
+    if (d.mode === "keyword" && d.keywords.filter((k) => k.trim()).length === 0) {
+      problems.push(
+        "Add at least one trigger keyword, or switch the trigger to “any message”.",
+      );
+    }
+  }
 
   const ids = new Set(graph.nodes.map((n) => n.id));
   for (const e of graph.edges) {

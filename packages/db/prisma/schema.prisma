@@ -46,6 +46,7 @@ model Org {
   flows            Flow[]
   flowRuns         FlowRun[]
   broadcasts       Broadcast[]
+  savedReplies     SavedReply[]
 }
 
 model User {
@@ -203,6 +204,22 @@ model Segment {
 
   org        Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
+
+  @@index([orgId])
+}
+
+/// Reusable canned responses agents can insert in the inbox (optionally via a
+/// `/shortcut`). Org-scoped; shortcuts are unique within an org when set.
+model SavedReply {
+  id        String   @id @default(cuid())
+  orgId     String
+  title     String
+  shortcut  String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }

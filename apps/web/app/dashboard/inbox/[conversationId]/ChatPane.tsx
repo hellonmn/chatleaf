@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Paperclip, X, FileText, Send, Smile, Zap, Loader2 } from "lucide-react";
-import { extractMediaRef } from "@watool/wa";
+import Link from "next/link";
+import { Clock, Paperclip, X, FileText, Send, Smile, Zap, Loader2, Settings2 } from "lucide-react";
+import { extractMediaRef } from "@/lib/media-ref";
 import { clock } from "@/lib/format";
 import { MediaImage } from "@/components/MediaImage";
 import { sendReplyAction, sendMediaReplyAction, type ActionState } from "@/lib/actions/inbox";
@@ -18,11 +19,7 @@ export type ChatMessage = {
   optimistic?: boolean;
 };
 
-const QUICK_REPLIES = [
-  "Hi! 🎉 Thanks for reaching out — how can I help?",
-  "Here's the demo link: chatleaf.in/demo",
-  "Our festive offer ends this Sunday 🌿",
-];
+export type SavedReply = { id: string; title: string; shortcut: string | null; body: string };
 
 function bodyText(payload: unknown, type: string): string {
   const p = payload as { text?: { body?: string }; caption?: string } | null;
@@ -78,10 +75,12 @@ export function ChatPane({
   conversationId,
   messages,
   canSendFreeform,
+  savedReplies,
 }: {
   conversationId: string;
   messages: ChatMessage[];
   canSendFreeform: boolean;
+  savedReplies: SavedReply[];
 }) {
   const router = useRouter();
   const [optimistic, addOptimistic] = useOptimistic(
@@ -98,13 +97,43 @@ export function ChatPane({
   }, [mediaState?.ok]);
   const [preview, setPreview] = useState<{ name: string; isImage: boolean; url?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const mediaFormRef = useRef<HTMLFormElement>(null);
 
-  // keep scrolled to the newest message
+  // Saved-reply "/" command: when the input is just `/query`, show a picker.
+  const slashMatch = /^\/(\S*)$/.exec(text);
+  const slashQuery = slashMatch ? slashMatch[1]!.toLowerCase() : null;
+  const replyMatches =
+    slashQuery !== null
+      ? savedReplies
+          .filter((r) => (r.shortcut ?? "").toLowerCase().includes(slashQuery) || r.title.toLowerCase().includes(slashQuery))
+          .slice(0, 6)
+      : [];
+  const slashOpen = slashQuery !== null && replyMatches.length > 0;
+
+  function onComposerChange(v: string) {
+    // Auto-expand a fully typed `/shortcut␠` into its body.
+    const done = /^\/(\S+)\s$/.exec(v);
+    if (done) {
+      const hit = savedReplies.find((r) => r.shortcut && r.shortcut.toLowerCase() === done[1]!.toLowerCase());
+      if (hit) { setText(hit.body); return; }
+    }
+    setText(v);
+  }
+  function applyReply(r: SavedReply) {
+    setText(r.body);
+    inputRef.current?.focus();
+  }
+
+  // Pin to the newest message: on open, when switching conversations, and as new
+  // messages arrive. Setting scrollTop directly on the container is reliable —
+  // scrollIntoView can no-op before layout/images settle or fail to move when the
+  // count is unchanged across a conversation switch.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [optimistic.length]);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [conversationId, optimistic.length]);
 
   function sendText() {
     const value = text.trim();
@@ -145,6 +174,7 @@ export function ChatPane({
     <>
       {/* Messages */}
       <div
+        ref={scrollRef}
         className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
         style={{ backgroundColor: "#f7f9fb", backgroundImage: "radial-gradient(#dce3eb 1px, transparent 1px)", backgroundSize: "18px 18px" }}
       >
@@ -152,7 +182,6 @@ export function ChatPane({
           <span className="rounded-pill bg-white/80 px-3 py-1 text-[11px] font-semibold text-faint shadow-sm">Today</span>
         </div>
         {optimistic.map((m) => <Bubble key={m.id} m={m} />)}
-        <div ref={bottomRef} />
       </div>
 
       {/* Composer */}
@@ -164,14 +193,17 @@ export function ChatPane({
           </div>
         ) : (
           <div className="space-y-2.5">
-            {!preview && (
-              <div className="flex flex-wrap gap-2">
-                {QUICK_REPLIES.map((r) => (
-                  <button key={r} type="button" onClick={() => setText(r)} className="inline-flex max-w-[240px] items-center gap-1.5 rounded-pill bg-canvas px-3 py-1.5 text-xs text-sub hover:bg-line">
+            {!preview && !text && (
+              <div className="flex flex-wrap items-center gap-2">
+                {savedReplies.slice(0, 4).map((r) => (
+                  <button key={r.id} type="button" onClick={() => applyReply(r)} title={r.body} className="inline-flex max-w-[240px] items-center gap-1.5 rounded-pill bg-canvas px-3 py-1.5 text-xs text-sub hover:bg-line">
                     <Zap className="h-3 w-3 shrink-0 text-warm" />
-                    <span className="truncate">{r}</span>
+                    <span className="truncate">{r.title}</span>
                   </button>
                 ))}
+                <Link href="/dashboard/settings/replies" className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand-soft">
+                  <Settings2 className="h-3 w-3" /> {savedReplies.length ? "Manage" : "Add saved replies"}
+                </Link>
               </div>
             )}
 
@@ -202,24 +234,50 @@ export function ChatPane({
             </form>
 
             {!preview && (
-              <div className="flex items-center gap-2 rounded-card border border-line bg-white px-3 py-2">
-                <button type="button" title="Emoji" className="shrink-0 text-faint hover:text-sub"><Smile className="h-5 w-5" /></button>
-                <button type="button" title="Attach" onClick={() => fileRef.current?.click()} className="shrink-0 text-faint hover:text-sub"><Paperclip className="h-5 w-5" /></button>
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Type a message…"
-                  className="flex-1 bg-transparent text-sm outline-none"
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } }}
-                />
-                <button
-                  type="button"
-                  onClick={sendText}
-                  disabled={pending}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white shadow-[0_8px_18px_rgba(14,116,144,.26)] transition-colors hover:bg-brand-dark disabled:opacity-60"
-                >
-                  {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                </button>
+              <div className="relative">
+                {slashOpen && (
+                  <div className="absolute bottom-full left-0 z-20 mb-2 w-full max-w-md overflow-hidden rounded-card border border-line bg-white py-1 shadow-card-lg">
+                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-faint">Saved replies — Enter to insert</div>
+                    {replyMatches.map((r, i) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); applyReply(r); }}
+                        className={`flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-canvas ${i === 0 ? "bg-canvas/60" : ""}`}
+                      >
+                        <span className="mt-0.5 shrink-0 rounded-pill bg-brand-soft px-1.5 text-[10px] font-bold text-brand">/{r.shortcut ?? "…"}</span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-semibold text-ink">{r.title}</span>
+                          <span className="block truncate text-[11px] text-faint">{r.body}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 rounded-card border border-line bg-white px-3 py-2">
+                  <button type="button" title="Emoji" className="shrink-0 text-faint hover:text-sub"><Smile className="h-5 w-5" /></button>
+                  <button type="button" title="Attach" onClick={() => fileRef.current?.click()} className="shrink-0 text-faint hover:text-sub"><Paperclip className="h-5 w-5" /></button>
+                  <input
+                    ref={inputRef}
+                    value={text}
+                    onChange={(e) => onComposerChange(e.target.value)}
+                    placeholder="Type a message…  (try /shortcut)"
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    onKeyDown={(e) => {
+                      if (slashOpen && e.key === "Enter") { e.preventDefault(); applyReply(replyMatches[0]!); return; }
+                      if (slashOpen && e.key === "Escape") { e.preventDefault(); setText(""); return; }
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={sendText}
+                    disabled={pending}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white shadow-[0_8px_18px_rgba(14,116,144,.26)] transition-colors hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
             )}
 

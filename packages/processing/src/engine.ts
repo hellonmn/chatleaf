@@ -45,9 +45,20 @@ export async function runFlowsForInbound(
     });
     const graph = parseGraph(version?.graphJSON);
     const waiting = graph?.nodes.find((n) => n.id === run.currentNodeId);
-    if (graph && waiting && waiting.type === "askQuestion") {
-      await resumeAtquestion(ctx, client, graph, run, waiting);
-      return { handled: true };
+    if (graph && waiting) {
+      if (waiting.type === "askQuestion") {
+        await resumeAtquestion(ctx, client, graph, run, waiting);
+        return { handled: true };
+      }
+      // A buttons message also waits: the inbound reply is the tapped button.
+      if (
+        waiting.type === "sendMessage" &&
+        waiting.data.bodyType === "buttons" &&
+        waiting.data.buttons.length > 0
+      ) {
+        await resumeAtButtons(ctx, client, graph, run, waiting);
+        return { handled: true };
+      }
     }
   }
 
@@ -90,6 +101,64 @@ export async function runFlowsForInbound(
   return { handled: false };
 }
 
+/**
+ * Force-run a specific flow on a conversation, bypassing trigger matching. Used
+ * by the "Run flow" action in the inbox so an agent can kick off (or test) a bot
+ * flow on demand. Prefers the published version; falls back to the latest draft
+ * so unpublished flows can be tried too. Any other active run on the
+ * conversation is closed so this manual run becomes the authoritative one.
+ */
+export async function startFlowForConversation(
+  ctx: EngineContext,
+  flowId: string,
+): Promise<{ started: boolean; error?: string }> {
+  const flow = await prisma.flow.findFirst({
+    where: { id: flowId, orgId: ctx.orgId },
+  });
+  if (!flow) return { started: false, error: "Flow not found." };
+
+  const version =
+    (await prisma.flowVersion.findFirst({
+      where: { flowId, publishedAt: { not: null } },
+      orderBy: { version: "desc" },
+    })) ??
+    (await prisma.flowVersion.findFirst({
+      where: { flowId },
+      orderBy: { version: "desc" },
+    }));
+  if (!version) return { started: false, error: "This flow has no saved version yet." };
+
+  const graph = parseGraph(version.graphJSON);
+  if (!graph) return { started: false, error: "This flow's graph is invalid." };
+  const trigger = graph.nodes.find((n) => n.type === "trigger");
+  if (!trigger) return { started: false, error: "This flow has no trigger node." };
+
+  const client = createWhatsAppClient({
+    phoneNumberId: ctx.phoneNumberId,
+    accessToken: ctx.accessToken,
+  });
+
+  await prisma.flowRun.updateMany({
+    where: { conversationId: ctx.conversation.id, status: "ACTIVE" },
+    data: { status: "COMPLETED" },
+  });
+
+  const run = await prisma.flowRun.create({
+    data: {
+      orgId: ctx.orgId,
+      flowId: flow.id,
+      flowVersionId: version.id,
+      contactId: ctx.contact.id,
+      conversationId: ctx.conversation.id,
+      state: {},
+      status: "ACTIVE",
+    },
+  });
+  const first = nextNode(graph, trigger.id);
+  await execute(ctx, client, graph, run.id, first, {});
+  return { started: true };
+}
+
 // ── Resume at an Ask node: the inbound message is the answer ────────────────
 
 async function resumeAtquestion(
@@ -122,6 +191,29 @@ async function resumeAtquestion(
   await execute(ctx, client, graph, run.id, nextNode(graph, node.id), state);
 }
 
+// ── Resume after a buttons message: the inbound reply is the tapped button ──
+
+async function resumeAtButtons(
+  ctx: EngineContext,
+  client: WhatsAppClient,
+  graph: FlowGraph,
+  run: { id: string; state: unknown },
+  node: Extract<FlowNode, { type: "sendMessage" }>,
+): Promise<void> {
+  const state = (run.state as Record<string, unknown>) ?? {};
+  const a = (ctx.inboundText ?? "").toLowerCase().trim();
+  const btn = node.data.buttons.find(
+    (b) => b.id.toLowerCase() === a || b.label.toLowerCase().trim() === a,
+  );
+
+  // Route via the tapped button's handle; if unmatched, follow a fallback edge
+  // (sourceHandle = null), else the flow ends.
+  const target =
+    (btn && edgeTargetExact(graph, node.id, btn.id)) ??
+    edgeTargetExact(graph, node.id, null);
+  await execute(ctx, client, graph, run.id, target, state);
+}
+
 // ── Core executor: run nodes until a wait/end ───────────────────────────────
 
 async function execute(
@@ -139,16 +231,30 @@ async function execute(
     switch (node.type) {
       case "sendMessage": {
         await sendNode(ctx, client, node, state);
+        // A buttons message pauses the run until the customer taps a button.
+        if (node.data.bodyType === "buttons" && node.data.buttons.length > 0) {
+          await prisma.flowRun.update({
+            where: { id: runId },
+            data: { currentNodeId: node.id, state: state as Prisma.InputJsonValue, status: "ACTIVE" },
+          });
+          return;
+        }
         node = nextNode(graph, node.id);
         break;
       }
       case "askQuestion": {
-        await send(ctx, client, interpolate(node.data.prompt, state, ctx.contact.attributes));
+        const prompt = interpolate(node.data.prompt, state, ctx.contact.attributes);
+        const quick = node.data.buttons ?? [];
+        if (quick.length > 0) {
+          await sendButtons(ctx, client, prompt, quick.map((b) => ({ id: b.id, title: b.label })));
+        } else {
+          await send(ctx, client, prompt);
+        }
         await prisma.flowRun.update({
           where: { id: runId },
           data: { currentNodeId: node.id, state: state as Prisma.InputJsonValue, status: "ACTIVE" },
         });
-        return; // WAIT for the next inbound message
+        return; // WAIT for the next inbound message (typed or a tapped quick-reply)
       }
       case "condition": {
         const handle = evalCondition(node, state, ctx.contact.attributes);
@@ -438,6 +544,19 @@ function nextNode(graph: FlowGraph, fromId: string, sourceHandle?: string): Flow
     (e) =>
       e.source === fromId &&
       (sourceHandle === undefined || e.sourceHandle === sourceHandle),
+  );
+  if (!edge) return undefined;
+  return graph.nodes.find((n) => n.id === edge.target);
+}
+
+/** Follow the edge whose sourceHandle matches EXACTLY (null = the default edge). */
+function edgeTargetExact(
+  graph: FlowGraph,
+  fromId: string,
+  handle: string | null,
+): FlowNode | undefined {
+  const edge = graph.edges.find(
+    (e) => e.source === fromId && (e.sourceHandle ?? null) === handle,
   );
   if (!edge) return undefined;
   return graph.nodes.find((n) => n.id === edge.target);

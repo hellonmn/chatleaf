@@ -11,6 +11,7 @@ import {
   mediaKindFromMime,
   describeWaError,
 } from "@watool/wa";
+import { startFlowForConversation } from "@watool/processing";
 import { canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { publishInbox } from "@/lib/realtime";
@@ -226,6 +227,76 @@ export async function sendMediaReplyAction(
         : message,
     };
   }
+}
+
+/**
+ * Manually run a bot flow on a conversation from the inbox. Bypasses trigger
+ * matching (the agent explicitly picked it), and flips the conversation to BOT
+ * so any ask-question steps can capture the customer's next reply.
+ */
+export async function runFlowAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) {
+    return { error: "You don't have permission to run flows." };
+  }
+
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const flowId = String(formData.get("flowId") ?? "");
+  if (!conversationId || !flowId) return { error: "Pick a flow to run." };
+
+  const convo = await prisma.conversation.findFirst({
+    where: { id: conversationId, orgId: ctx.orgId },
+    include: { contact: true, phoneNumber: { include: { account: true } } },
+  });
+  if (!convo) return { error: "Conversation not found." };
+
+  const tokenEnc = convo.phoneNumber.account.accessTokenEnc;
+  if (!tokenEnc) {
+    return { error: "No WhatsApp access token on file. Reconnect in Settings." };
+  }
+
+  // Hand the conversation back to the bot so the flow drives it.
+  await prisma.conversation.update({
+    where: { id: convo.id },
+    data: { status: "BOT", assignedUserId: null },
+  });
+
+  let res: { started: boolean; error?: string };
+  try {
+    res = await startFlowForConversation(
+      {
+        orgId: ctx.orgId,
+        conversation: {
+          id: convo.id,
+          status: "BOT",
+          windowExpiresAt: convo.windowExpiresAt,
+        },
+        contact: {
+          id: convo.contact.id,
+          waId: convo.contact.waId,
+          attributes: (convo.contact.attributes as Record<string, unknown>) ?? {},
+        },
+        phoneNumberId: convo.phoneNumber.phoneNumberId,
+        accessToken: decryptSecret(tokenEnc),
+        inboundText: undefined,
+      },
+      flowId,
+    );
+  } catch (err) {
+    const { message, isAuth } = describeWaError(err);
+    await flagIfAuthError(ctx.orgId, isAuth);
+    return { error: message };
+  }
+
+  if (!res.started) return { error: res.error ?? "Could not start the flow." };
+
+  publishInbox(ctx.orgId);
+  revalidatePath(`/dashboard/inbox/${convo.id}`);
+  revalidatePath("/dashboard/inbox");
+  return { ok: "Flow started." };
 }
 
 const statusSchema = z.object({

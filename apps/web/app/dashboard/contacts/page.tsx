@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Plus, Megaphone, Search } from "lucide-react";
+import { Plus, Megaphone, Search, Download } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
+import { ImportContacts } from "./ImportContacts";
 
 const STAGES = ["NEW", "QUALIFIED", "ENGAGED", "CONVERTED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -107,6 +108,10 @@ export default async function ContactsPage({
                 className="w-44 rounded-btn border border-line bg-canvas py-1.5 pl-8 pr-3 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
               />
             </form>
+            <a href="/api/contacts/export" className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas">
+              <Download className="h-4 w-4" /> Export
+            </a>
+            <ImportContacts />
             <Link href="/dashboard/broadcasts" className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas">
               <Megaphone className="h-4 w-4" /> Broadcast
             </Link>

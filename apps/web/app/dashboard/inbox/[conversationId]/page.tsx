@@ -7,6 +7,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { avatarColor } from "@/lib/avatar";
 import { ContactPanel } from "./ContactPanel";
 import { ConversationActions } from "./ConversationActions";
+import { RunFlowMenu } from "./RunFlowMenu";
 import { ChatPane, type ChatMessage } from "./ChatPane";
 
 export default async function ConversationPage({
@@ -26,6 +27,21 @@ export default async function ConversationPage({
     },
   });
   if (!convo) notFound();
+
+  // Flows the agent can run on demand (newest first; skip archived).
+  const flows = await prisma.flow.findMany({
+    where: { orgId: ctx.orgId, status: { not: "ARCHIVED" } },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, name: true, status: true },
+    take: 50,
+  });
+
+  const savedReplies = await prisma.savedReply.findMany({
+    where: { orgId: ctx.orgId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true, shortcut: true, body: true },
+    take: 50,
+  });
 
   const windowOpen =
     !!convo.windowExpiresAt && convo.windowExpiresAt.getTime() > Date.now();
@@ -71,13 +87,17 @@ export default async function ConversationPage({
             </div>
           </div>
         </div>
-        <ConversationActions conversationId={convo.id} status={convo.status} />
+        <div className="flex items-center gap-2">
+          <RunFlowMenu conversationId={convo.id} flows={flows} />
+          <ConversationActions conversationId={convo.id} status={convo.status} />
+        </div>
       </div>
 
       <ChatPane
         conversationId={convo.id}
         messages={chatMessages}
         canSendFreeform={windowOpen}
+        savedReplies={savedReplies}
       />
       </div>
 

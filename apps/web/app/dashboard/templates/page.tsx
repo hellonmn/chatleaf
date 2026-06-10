@@ -81,9 +81,12 @@ export default async function TemplatesPage({
             </Link>
           ))}
         </div>
-        {manage && account && (
+        {manage && (
           <div className="flex items-center gap-2">
-            <SyncButton />
+            {account && <SyncButton />}
+            <Link href="/dashboard/templates/new" className="inline-flex items-center gap-1.5 rounded-btn bg-brand px-3 py-1.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(14,116,144,.22)] hover:bg-brand-dark">
+              <Plus className="h-4 w-4" /> New template
+            </Link>
           </div>
         )}
       </div>
@@ -128,20 +131,18 @@ export default async function TemplatesPage({
           </Card>
         ))}
 
-        {/* Create-in-Meta card */}
+        {/* Create-in-app card → submits to Meta */}
         {manage && (
-          <a
-            href="https://business.facebook.com/wa/manage/message-templates/"
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            href="/dashboard/templates/new"
             className="flex min-h-[220px] flex-col items-center justify-center rounded-card border-2 border-dashed border-line p-4 text-center transition-colors hover:border-brand hover:bg-brand-soft/40"
           >
             <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-soft text-brand">
               <Plus className="h-6 w-6" />
             </span>
             <div className="mt-2 text-sm font-bold text-ink">Create new template</div>
-            <div className="mt-0.5 text-xs text-sub">Build it in Meta, then Sync from Meta</div>
-          </a>
+            <div className="mt-0.5 text-xs text-sub">Build it here & submit to Meta for review</div>
+          </Link>
         )}
       </div>
 

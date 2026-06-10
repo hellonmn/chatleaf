@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { FlowGraphSchema, type FlowGraph } from "@watool/types";
-import { VerticalFlowBuilder } from "./VerticalFlowBuilder";
+import { NodeFlowBuilder } from "./NodeFlowBuilder";
 
 export const metadata = { title: "Flow editor — Chatleaf" };
 
@@ -40,7 +40,7 @@ export default async function FlowEditorPage({
   }
 
   return (
-    <VerticalFlowBuilder
+    <NodeFlowBuilder
       flowId={flow.id}
       name={flow.name}
       status={flow.status}
