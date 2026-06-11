@@ -77,9 +77,9 @@ async function handleChange(change: NormalizedChange): Promise<void> {
     await handleStatus(orgId, st);
   }
 
-  // Push a live update to any open inboxes for this org — works from both the
-  // inline (web) path and the queue worker.
-  if (change.messages.length || change.statuses.length) {
+  // Inbound messages publish their own preview event (above); here we just
+  // refresh on delivery-status changes (sent/delivered/read/failed).
+  if (change.statuses.length) {
     publishInboxEvent(orgId);
   }
 }
@@ -159,6 +159,12 @@ async function handleInboundMessage(
   const inboundText = extractInboundText(msg);
   console.log(
     `[inbound] from ${msg.from} (org ${orgId}): ${inboundText ?? `[${msg.type}]`}`,
+  );
+
+  // Live push with a preview so open inboxes can show a desktop notification.
+  publishInboxEvent(
+    orgId,
+    JSON.stringify({ t: "msg", name: contact.name ?? msg.from, text: inboundText ?? `[${msg.type}]` }),
   );
 
   // Decrypt the access token once for the engine + auto-replies.

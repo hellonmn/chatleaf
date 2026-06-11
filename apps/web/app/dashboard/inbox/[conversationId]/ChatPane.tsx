@@ -3,11 +3,11 @@
 import { useActionState, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, Paperclip, X, FileText, Send, Smile, Zap, Loader2, Settings2 } from "lucide-react";
+import { Clock, Paperclip, X, FileText, Send, Smile, Zap, Loader2, Settings2, Sparkles } from "lucide-react";
 import { extractMediaRef } from "@/lib/media-ref";
 import { clock } from "@/lib/format";
 import { MediaImage } from "@/components/MediaImage";
-import { sendReplyAction, sendMediaReplyAction, type ActionState } from "@/lib/actions/inbox";
+import { sendReplyAction, sendMediaReplyAction, suggestReplyAction, type ActionState } from "@/lib/actions/inbox";
 
 export type ChatMessage = {
   id: string;
@@ -76,11 +76,13 @@ export function ChatPane({
   messages,
   canSendFreeform,
   savedReplies,
+  aiEnabled,
 }: {
   conversationId: string;
   messages: ChatMessage[];
   canSendFreeform: boolean;
   savedReplies: SavedReply[];
+  aiEnabled: boolean;
 }) {
   const router = useRouter();
   const [optimistic, addOptimistic] = useOptimistic(
@@ -91,6 +93,19 @@ export function ChatPane({
   const [mediaState, mediaAction] = useActionState<ActionState, FormData>(sendMediaReplyAction, undefined);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  async function suggest() {
+    setError(null);
+    setSuggesting(true);
+    try {
+      const res = await suggestReplyAction(conversationId);
+      if (res.text) { setText(res.text); inputRef.current?.focus(); }
+      else if (res.error) setError(res.error);
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   useEffect(() => {
     if (mediaState?.ok) clearStaged();
@@ -257,6 +272,11 @@ export function ChatPane({
                 <div className="flex items-center gap-2 rounded-card border border-line bg-white px-3 py-2">
                   <button type="button" title="Emoji" className="shrink-0 text-faint hover:text-sub"><Smile className="h-5 w-5" /></button>
                   <button type="button" title="Attach" onClick={() => fileRef.current?.click()} className="shrink-0 text-faint hover:text-sub"><Paperclip className="h-5 w-5" /></button>
+                  {aiEnabled && (
+                    <button type="button" title="Suggest a reply (AI)" onClick={suggest} disabled={suggesting} className="shrink-0 text-faint transition-colors hover:text-violet disabled:opacity-50">
+                      {suggesting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                    </button>
+                  )}
                   <input
                     ref={inputRef}
                     value={text}

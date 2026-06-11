@@ -3,7 +3,8 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
-import { createFlowAction, deleteFlowAction } from "@/lib/actions/flows";
+import { createFlowAction, createFlowFromTemplateAction, deleteFlowAction } from "@/lib/actions/flows";
+import { FLOW_TEMPLATES } from "@/lib/flow-templates";
 
 const STATUS_STYLE: Record<string, string> = {
   PUBLISHED: "bg-emerald-100 text-emerald-700",
@@ -43,6 +44,24 @@ export default async function FlowsPage() {
           </form>
         )}
       </div>
+
+      {manage && (
+        <div>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Start from a template</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {FLOW_TEMPLATES.map((t) => (
+              <form key={t.key} action={createFlowFromTemplateAction}>
+                <input type="hidden" name="template" value={t.key} />
+                <button className="flex h-full w-full flex-col rounded-lg border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand hover:bg-brand/[0.04]">
+                  <span className="text-sm font-semibold text-slate-900">{t.name}</span>
+                  <span className="mt-1 text-xs leading-relaxed text-slate-500">{t.description}</span>
+                  <span className="mt-3 text-xs font-semibold text-brand">Use template →</span>
+                </button>
+              </form>
+            ))}
+          </div>
+        </div>
+      )}
 
       {flows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">

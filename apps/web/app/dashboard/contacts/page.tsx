@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Plus, Megaphone, Search, Download } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
-import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { ImportContacts } from "./ImportContacts";
+import { ContactsTable, type Row } from "./ContactsTable";
 
 const STAGES = ["NEW", "QUALIFIED", "ENGAGED", "CONVERTED"] as const;
 type Stage = (typeof STAGES)[number];
@@ -15,11 +15,6 @@ const STAGE_META: Record<Stage, { label: string; dot: string; bar: string; pill:
   ENGAGED: { label: "Engaged", dot: "#f3a05a", bar: "bg-warm", pill: "bg-warm/15 text-[#c47a2e]" },
   CONVERTED: { label: "Converted", dot: "#0e7490", bar: "bg-brand", pill: "bg-brand-soft text-brand-ink" },
 };
-
-function money(v: number | null): string {
-  if (v == null) return "—";
-  return "₹" + v.toLocaleString("en-IN");
-}
 
 export default async function ContactsPage({
   searchParams,
@@ -44,7 +39,7 @@ export default async function ContactsPage({
       : {}),
   };
 
-  const [grouped, total, contacts] = await Promise.all([
+  const [grouped, total, contacts, tagRows] = await Promise.all([
     prisma.contact.groupBy({ by: ["stage"], where: { orgId: ctx.orgId }, _count: true }),
     prisma.contact.count({ where: { orgId: ctx.orgId } }),
     prisma.contact.findMany({
@@ -60,7 +55,24 @@ export default async function ContactsPage({
       orderBy: [{ lastInboundAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       take: 200,
     }),
+    prisma.tag.findMany({ where: { orgId: ctx.orgId }, orderBy: { name: "asc" }, select: { name: true } }),
   ]);
+
+  const rows: Row[] = contacts.map((c) => {
+    const owner = c.conversations[0]?.assignedUser;
+    return {
+      id: c.id,
+      name: c.name ?? c.phone ?? c.waId,
+      phone: c.phone,
+      waId: c.waId,
+      stage: c.stage,
+      tags: c.contactTags.map((ct) => ct.tag.name),
+      source: c.source,
+      ownerName: owner ? owner.name ?? owner.email : null,
+      value: c.value,
+      lastInboundAt: c.lastInboundAt ? c.lastInboundAt.toISOString() : null,
+    };
+  });
 
   const counts: Record<Stage, number> = { NEW: 0, QUALIFIED: 0, ENGAGED: 0, CONVERTED: 0 };
   for (const g of grouped) counts[g.stage as Stage] = g._count;
@@ -121,73 +133,11 @@ export default async function ContactsPage({
           </div>
         </div>
 
-        {contacts.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-faint">No contacts here yet.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-y border-line text-left text-xs font-semibold uppercase tracking-wide text-faint">
-                  <th className="px-5 py-2.5 font-semibold">Contact</th>
-                  <th className="px-3 py-2.5 font-semibold">Stage</th>
-                  <th className="px-3 py-2.5 font-semibold">Tags</th>
-                  <th className="px-3 py-2.5 font-semibold">Source</th>
-                  <th className="px-3 py-2.5 font-semibold">Owner</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Est. value</th>
-                  <th className="px-5 py-2.5 text-right font-semibold">Last active</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contacts.map((c) => {
-                  const name = c.name ?? c.phone ?? c.waId;
-                  const owner = c.conversations[0]?.assignedUser;
-                  const m = STAGE_META[c.stage as Stage];
-                  return (
-                    <tr key={c.id} className="border-b border-line/70 last:border-0 hover:bg-canvas/60">
-                      <td className="px-5 py-3">
-                        <Link href={`/dashboard/contacts/${c.id}`} className="flex items-center gap-3">
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand/10 text-xs font-bold text-brand-ink">
-                            {name.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold text-ink">{name}</span>
-                            <span className="block truncate text-xs text-faint">{c.phone ?? "+" + c.waId}</span>
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-xs font-semibold ${m.pill}`}>
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.dot }} />
-                          {m.label}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {c.contactTags.length === 0 && <span className="text-faint">—</span>}
-                          {c.contactTags.map((ct) => (
-                            <span key={ct.tagId} className="rounded bg-canvas px-1.5 py-0.5 text-[11px] text-sub">
-                              {ct.tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-sub">{c.source ?? "—"}</td>
-                      <td className="px-3 py-3">
-                        {owner ? (
-                          <span className="grid h-7 w-7 place-items-center rounded-full bg-violet/15 text-[11px] font-bold text-violet" title={owner.name ?? owner.email}>
-                            {(owner.name ?? owner.email).slice(0, 2).toUpperCase()}
-                          </span>
-                        ) : (
-                          <span className="text-faint">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-ink">{money(c.value)}</td>
-                      <td className="px-5 py-3 text-right text-faint">{c.lastInboundAt ? timeAgo(c.lastInboundAt) : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="px-2 pb-2">
+            <ContactsTable rows={rows} tags={tagRows.map((t) => t.name)} />
           </div>
         )}
       </Card>

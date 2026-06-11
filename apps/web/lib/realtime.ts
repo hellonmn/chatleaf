@@ -5,10 +5,10 @@ import { publishInboxEvent, subscribeInboxEvent } from "@watool/queue";
  * Redis-backed when REDIS_URL is set (cross-process: the worker + every web
  * instance) and an in-process EventEmitter otherwise (dev / single instance).
  */
-export function publishInbox(orgId: string): void {
-  publishInboxEvent(orgId);
+export function publishInbox(orgId: string, payload?: string): void {
+  publishInboxEvent(orgId, payload);
 }
 
-export function subscribeInbox(orgId: string, cb: () => void): () => void {
+export function subscribeInbox(orgId: string, cb: (payload: string) => void): () => void {
   return subscribeInboxEvent(orgId, cb);
 }

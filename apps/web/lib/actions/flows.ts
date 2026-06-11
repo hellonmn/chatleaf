@@ -30,6 +30,26 @@ function starterGraph(): FlowGraph {
   };
 }
 
+/** Create a flow pre-filled from a starter template, then open the builder. */
+export async function createFlowFromTemplateAction(formData: FormData): Promise<void> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) return;
+  const key = String(formData.get("template") ?? "");
+  const { FLOW_TEMPLATES } = await import("@/lib/flow-templates");
+  const tpl = FLOW_TEMPLATES.find((t) => t.key === key);
+  if (!tpl) return;
+
+  const flow = await prisma.flow.create({
+    data: {
+      orgId: ctx.orgId,
+      name: tpl.name,
+      status: "DRAFT",
+      versions: { create: { version: 1, graphJSON: tpl.build() as Prisma.InputJsonValue } },
+    },
+  });
+  redirect(`/flows/${flow.id}`);
+}
+
 /** Create a flow (+ its first draft version) and open the builder. */
 export async function createFlowAction(formData: FormData): Promise<void> {
   const ctx = await requireActiveContext();

@@ -11,11 +11,13 @@ import Anthropic from "@anthropic-ai/sdk";
 const DEFAULT_MODEL = "claude-opus-4-8";
 
 let _client: Anthropic | undefined;
-function client(): Anthropic {
+/** Resolve an Anthropic client. A per-org `apiKey` (from settings) takes
+ *  precedence; otherwise the env key is used (and the client is cached). */
+function client(apiKey?: string): Anthropic {
+  if (apiKey) return new Anthropic({ apiKey });
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not set — the AI node can't run.");
+    throw new Error("No Claude API key configured.");
   }
-  // The SDK reads ANTHROPIC_API_KEY from the environment.
   _client ??= new Anthropic();
   return _client;
 }
@@ -33,6 +35,8 @@ export async function generateAiReply(opts: {
   history: AiTurn[];
   model?: string;
   maxTokens?: number;
+  /** Per-org Claude key (overrides the env key). */
+  apiKey?: string;
 }): Promise<string> {
   const system =
     opts.systemPrompt +
@@ -48,7 +52,7 @@ export async function generateAiReply(opts: {
     messages.push({ role: "user", content: "Hello" });
   }
 
-  const res = await client().messages.create({
+  const res = await client(opts.apiKey).messages.create({
     model: opts.model || DEFAULT_MODEL,
     max_tokens: opts.maxTokens ?? 512,
     system,

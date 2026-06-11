@@ -11,7 +11,12 @@ import {
   mediaKindFromMime,
   describeWaError,
 } from "@watool/wa";
-import { startFlowForConversation } from "@watool/processing";
+import {
+  startFlowForConversation,
+  generateAiReply,
+  isAiConfigured,
+  type AiTurn,
+} from "@watool/processing";
 import { canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { publishInbox } from "@/lib/realtime";
@@ -328,6 +333,65 @@ export async function setConversationStatusAction(
   publishInbox(ctx.orgId);
   revalidatePath(`/dashboard/inbox/${parsed.data.conversationId}`);
   revalidatePath("/dashboard/inbox");
+}
+
+function plainText(payload: unknown): string {
+  const p = payload as
+    | { text?: { body?: string }; caption?: string; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } }; button?: { text?: string } }
+    | null;
+  return (
+    p?.text?.body ??
+    p?.caption ??
+    p?.interactive?.button_reply?.title ??
+    p?.interactive?.list_reply?.title ??
+    p?.button?.text ??
+    ""
+  );
+}
+
+/** Draft a reply suggestion with Claude from the recent conversation history. */
+export async function suggestReplyAction(
+  conversationId: string,
+): Promise<{ text?: string; error?: string }> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return { error: "You don't have permission." };
+
+  const settings = await prisma.orgSettings.findUnique({
+    where: { orgId: ctx.orgId },
+    select: { aiApiKeyEnc: true },
+  });
+  const apiKey = settings?.aiApiKeyEnc ? decryptSecret(settings.aiApiKeyEnc) : undefined;
+  if (!apiKey && !isAiConfigured()) {
+    return { error: "Add a Claude API key in Settings → AI assistant to use suggestions." };
+  }
+
+  const convo = await prisma.conversation.findFirst({
+    where: { id: conversationId, orgId: ctx.orgId },
+    select: { id: true },
+  });
+  if (!convo) return { error: "Conversation not found." };
+
+  const recent = await prisma.message.findMany({
+    where: { conversationId: convo.id },
+    orderBy: { createdAt: "asc" },
+    take: 20,
+  });
+  const history: AiTurn[] = recent
+    .map((m) => ({ role: (m.direction === "IN" ? "user" : "assistant") as AiTurn["role"], text: plainText(m.payload) }))
+    .filter((t) => t.text.length > 0);
+  if (history.length === 0) return { error: "Nothing to reply to yet." };
+
+  try {
+    const text = await generateAiReply({
+      systemPrompt: `You are a helpful WhatsApp support agent for ${ctx.orgName}. Draft a concise, warm reply the human agent can send as-is. Reply in the customer's language. Do not invent facts, prices, or commitments.`,
+      history,
+      maxTokens: 400,
+      apiKey,
+    });
+    return { text };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not generate a suggestion." };
+  }
 }
 
 /** Assign a conversation to a specific teammate (empty userId = unassign). */

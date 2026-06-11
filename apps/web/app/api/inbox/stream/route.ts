@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       };
 
       send("connected");
-      const unsub = subscribeInbox(membership.orgId, () => send("refresh"));
+      const unsub = subscribeInbox(membership.orgId, (payload) => send(payload));
       const heartbeat = setInterval(() => send("ping"), 25_000);
 
       const close = () => {

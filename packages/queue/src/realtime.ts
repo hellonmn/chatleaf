@@ -39,7 +39,14 @@ function ensureSubscriber(): void {
   try {
     const sub = createRedisConnection();
     sub.subscribe(CHANNEL).catch((e) => console.error("[realtime] subscribe failed:", e));
-    sub.on("message", (_channel, message) => bus.emit(evName(message)));
+    sub.on("message", (_channel, message) => {
+      try {
+        const { orgId, payload } = JSON.parse(message) as { orgId: string; payload?: string };
+        bus.emit(evName(orgId), payload ?? "refresh");
+      } catch {
+        /* malformed */
+      }
+    });
   } catch (e) {
     console.error("[realtime] subscriber init failed:", e);
     g.__clSubInit = false; // allow a later retry
@@ -59,19 +66,20 @@ function publisher(): Redis | null {
   return g.__clPub ?? null;
 }
 
-/** Notify any open inboxes for an org that something changed. */
-export function publishInboxEvent(orgId: string): void {
+/** Notify any open inboxes for an org. `payload` is "refresh" or a small JSON
+ *  string (e.g. an inbound-message preview) the client can act on. */
+export function publishInboxEvent(orgId: string, payload: string = "refresh"): void {
   const pub = publisher();
   if (pub) {
     // Same-process subscribers receive it back via the Redis subscriber.
-    pub.publish(CHANNEL, orgId).catch((e) => console.error("[realtime] publish failed:", e));
+    pub.publish(CHANNEL, JSON.stringify({ orgId, payload })).catch((e) => console.error("[realtime] publish failed:", e));
   } else {
-    bus.emit(evName(orgId)); // single-process fallback
+    bus.emit(evName(orgId), payload); // single-process fallback
   }
 }
 
 /** Subscribe to an org's inbox events. Returns an unsubscribe function. */
-export function subscribeInboxEvent(orgId: string, cb: () => void): () => void {
+export function subscribeInboxEvent(orgId: string, cb: (payload: string) => void): () => void {
   ensureSubscriber();
   const ev = evName(orgId);
   bus.on(ev, cb);

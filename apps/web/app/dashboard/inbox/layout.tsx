@@ -2,6 +2,7 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { avatarColor } from "@/lib/avatar";
 import { InboxRealtime } from "@/components/InboxRealtime";
+import { EnableNotifications } from "@/components/EnableNotifications";
 import { ConversationList, type ConversationItem } from "./ConversationList";
 
 function snippet(message: { type: string; payload: unknown } | undefined): string {
@@ -52,6 +53,7 @@ export default async function InboxLayout({
   return (
     <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-card border border-line bg-white">
       <InboxRealtime />
+      <EnableNotifications />
       <ConversationList items={items} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>

@@ -219,6 +219,7 @@ model OrgSettings {
   awayMessage String   @default("Thanks for your message! 🌿 Our team is away right now — we'll get back to you during business hours.")
   hoursJSON   Json     @default("{}")
   autoAssign  Boolean  @default(false)
+  aiApiKeyEnc String? // encrypted Claude API key (per-org, optional)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

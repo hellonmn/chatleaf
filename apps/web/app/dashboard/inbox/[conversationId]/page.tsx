@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
+import { isAiConfigured } from "@watool/processing";
 import { requireActiveContext } from "@/lib/session";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { avatarColor } from "@/lib/avatar";
@@ -42,6 +43,12 @@ export default async function ConversationPage({
     select: { id: true, title: true, shortcut: true, body: true },
     take: 50,
   });
+
+  const aiSettings = await prisma.orgSettings.findUnique({
+    where: { orgId: ctx.orgId },
+    select: { aiApiKeyEnc: true },
+  });
+  const aiEnabled = isAiConfigured() || !!aiSettings?.aiApiKeyEnc;
 
   const memberRows = await prisma.membership.findMany({
     where: { orgId: ctx.orgId },
@@ -104,6 +111,7 @@ export default async function ConversationPage({
         messages={chatMessages}
         canSendFreeform={windowOpen}
         savedReplies={savedReplies}
+        aiEnabled={isAiConfigured()}
       />
       </div>
 

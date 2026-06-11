@@ -3,10 +3,35 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, Prisma } from "@watool/db";
+import { encryptSecret } from "@watool/wa";
 import { canManageOrg } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 
 export type SettingsState = { error?: string; ok?: string } | undefined;
+
+/** Save (or clear, if blank) the org's Claude API key — stored encrypted. */
+export async function saveAiKeyAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) {
+    return { error: "Only owners and admins can change this." };
+  }
+
+  const key = String(formData.get("apiKey") ?? "").trim();
+  if (key && !key.startsWith("sk-ant-")) {
+    return { error: "That doesn't look like a Claude API key (expected sk-ant-…)." };
+  }
+
+  await prisma.orgSettings.upsert({
+    where: { orgId: ctx.orgId },
+    create: { orgId: ctx.orgId, aiApiKeyEnc: key ? encryptSecret(key) : null },
+    update: { aiApiKeyEnc: key ? encryptSecret(key) : null },
+  });
+  revalidatePath("/dashboard/settings/ai");
+  return { ok: key ? "Claude API key saved." : "Claude API key removed." };
+}
 
 const dayCfg = z.object({
   enabled: z.boolean(),

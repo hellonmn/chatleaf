@@ -243,6 +243,54 @@ export async function setOptInAction(formData: FormData): Promise<void> {
   revalidatePath(`/dashboard/contacts/${parsed.data.contactId}`);
 }
 
+/** Apply an action to many selected contacts at once (tag / stage / delete). */
+export async function bulkContactsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return { error: "You don't have permission." };
+
+  const ids = String(formData.get("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const op = String(formData.get("op") ?? "");
+  if (ids.length === 0) return { error: "No contacts selected." };
+
+  const owned = await prisma.contact.findMany({
+    where: { id: { in: ids }, orgId: ctx.orgId },
+    select: { id: true },
+  });
+  const ownedIds = owned.map((c) => c.id);
+  if (ownedIds.length === 0) return { error: "No matching contacts." };
+
+  if (op === "addTag") {
+    const name = String(formData.get("tag") ?? "").trim();
+    if (!name) return { error: "Enter a tag name." };
+    const tag = await prisma.tag.upsert({
+      where: { orgId_name: { orgId: ctx.orgId, name } },
+      create: { orgId: ctx.orgId, name },
+      update: {},
+    });
+    await prisma.contactTag.createMany({
+      data: ownedIds.map((cid) => ({ contactId: cid, tagId: tag.id })),
+      skipDuplicates: true,
+    });
+  } else if (op === "setStage") {
+    const stage = String(formData.get("stage") ?? "");
+    if (!STAGES.includes(stage as (typeof STAGES)[number])) return { error: "Invalid stage." };
+    await prisma.contact.updateMany({
+      where: { id: { in: ownedIds }, orgId: ctx.orgId },
+      data: { stage: stage as (typeof STAGES)[number] },
+    });
+  } else if (op === "delete") {
+    await prisma.contact.deleteMany({ where: { id: { in: ownedIds }, orgId: ctx.orgId } });
+  } else {
+    return { error: "Unknown action." };
+  }
+
+  revalidatePath("/dashboard/contacts");
+  return { ok: `Updated ${ownedIds.length} contact(s).` };
+}
+
 const MAX_IMPORT = 5000;
 
 /** Bulk-import contacts from a CSV (upsert by waId). Maps common header names;
