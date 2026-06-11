@@ -43,13 +43,19 @@ export default async function ConversationPage({
     take: 50,
   });
 
+  const memberRows = await prisma.membership.findMany({
+    where: { orgId: ctx.orgId },
+    include: { user: { select: { name: true, email: true } } },
+  });
+  const members = memberRows.map((m) => ({
+    id: m.userId,
+    name: (m.user.name ?? m.user.email) + (m.userId === ctx.userId ? " (you)" : ""),
+  }));
+
   const windowOpen =
     !!convo.windowExpiresAt && convo.windowExpiresAt.getTime() > Date.now();
   const name = convo.contact.name ?? convo.contact.phone ?? convo.contact.waId;
   const headColor = avatarColor(name + convo.contact.waId);
-  const assignedTo = convo.assignedUser
-    ? `${convo.assignedUser.name ?? convo.assignedUser.email}${convo.assignedUser.id === ctx.userId ? " (you)" : ""}`
-    : null;
   const chatMessages: ChatMessage[] = convo.messages.map((m) => ({
     id: m.id,
     direction: m.direction as "IN" | "OUT",
@@ -101,7 +107,12 @@ export default async function ConversationPage({
       />
       </div>
 
-      <ContactPanel contact={convo.contact} assignedTo={assignedTo} />
+      <ContactPanel
+        contact={convo.contact}
+        conversationId={convo.id}
+        assignedUserId={convo.assignedUserId}
+        members={members}
+      />
     </div>
   );
 }

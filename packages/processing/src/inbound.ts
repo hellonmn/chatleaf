@@ -9,7 +9,7 @@ import {
   type WaStatus,
   type NormalizedChange,
 } from "@watool/wa";
-import type { WaInboundJob } from "@watool/queue";
+import { publishInboxEvent, type WaInboundJob } from "@watool/queue";
 import { runFlowsForInbound } from "./engine";
 
 /**
@@ -75,6 +75,12 @@ async function handleChange(change: NormalizedChange): Promise<void> {
   }
   for (const st of change.statuses) {
     await handleStatus(orgId, st);
+  }
+
+  // Push a live update to any open inboxes for this org — works from both the
+  // inline (web) path and the queue worker.
+  if (change.messages.length || change.statuses.length) {
+    publishInboxEvent(orgId);
   }
 }
 

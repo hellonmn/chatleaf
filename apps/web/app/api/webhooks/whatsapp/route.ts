@@ -3,7 +3,6 @@ import { prisma } from "@watool/db";
 import { verifyWebhookSignature } from "@watool/wa";
 import { getInboundQueue, isRedisConfigured } from "@watool/queue";
 import { processInboundJob } from "@watool/processing";
-import { publishInbox } from "@/lib/realtime";
 
 // Webhooks need Node APIs (crypto, ioredis) and must never be statically cached.
 export const runtime = "nodejs";
@@ -80,18 +79,9 @@ export async function POST(req: Request) {
       console.log(`[webhook] enqueued event ${event.id}`);
     } else {
       // No queue configured — process inline so dev works without Upstash/worker.
+      // processInboundJob publishes the live inbox update itself.
       console.log(`[webhook] no Redis configured; processing inline (event ${event.id})`);
       await processInboundJob({ webhookEventId: event.id, raw: parsed });
-
-      // Push a live update to any open inboxes for this org.
-      const pnid = (parsed as any)?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
-      if (pnid) {
-        const pn = await prisma.phoneNumber.findUnique({
-          where: { phoneNumberId: pnid },
-          select: { account: { select: { orgId: true } } },
-        });
-        if (pn) publishInbox(pn.account.orgId);
-      }
     }
   } catch (err) {
     console.error("[webhook] processing/enqueue failed:", err);

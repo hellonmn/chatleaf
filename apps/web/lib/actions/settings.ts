@@ -30,6 +30,7 @@ export async function saveBusinessHoursAction(
 
   const timezone = String(formData.get("timezone") ?? "Asia/Kolkata");
   const awayEnabled = ["on", "true"].includes(String(formData.get("awayEnabled") ?? ""));
+  const autoAssign = ["on", "true"].includes(String(formData.get("autoAssign") ?? ""));
   const awayMessage =
     String(formData.get("awayMessage") ?? "").trim().slice(0, 1024) ||
     "Thanks for your message! We'll reply during business hours.";
@@ -49,12 +50,14 @@ export async function saveBusinessHoursAction(
       timezone,
       awayEnabled,
       awayMessage,
+      autoAssign,
       hoursJSON: hours as Prisma.InputJsonValue,
     },
     update: {
       timezone,
       awayEnabled,
       awayMessage,
+      autoAssign,
       hoursJSON: hours as Prisma.InputJsonValue,
     },
   });

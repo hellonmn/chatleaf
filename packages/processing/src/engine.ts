@@ -2,10 +2,37 @@ import { prisma, Prisma } from "@watool/db";
 import { createWhatsAppClient, type WhatsAppClient } from "@watool/wa";
 import {
   FlowGraphSchema,
+  canHandleConversations,
   type FlowGraph,
   type FlowNode,
 } from "@watool/types";
 import { generateAiReply, isAiConfigured, type AiTurn } from "./ai";
+
+/** If the org has auto-assign on, return the handleable member with the fewest
+ *  open conversations; otherwise null (leave unassigned). */
+async function pickAutoAssignee(orgId: string): Promise<string | null> {
+  const settings = await prisma.orgSettings.findUnique({
+    where: { orgId },
+    select: { autoAssign: true },
+  });
+  if (!settings?.autoAssign) return null;
+
+  const members = (
+    await prisma.membership.findMany({ where: { orgId }, select: { userId: true, role: true } })
+  ).filter((m) => canHandleConversations(m.role));
+  if (members.length === 0) return null;
+
+  const loads = await Promise.all(
+    members.map(async (m) => ({
+      userId: m.userId,
+      count: await prisma.conversation.count({
+        where: { orgId, assignedUserId: m.userId, status: { in: ["AGENT", "OPEN"] } },
+      }),
+    })),
+  );
+  loads.sort((a, b) => a.count - b.count);
+  return loads[0]?.userId ?? null;
+}
 
 /**
  * Flow execution engine — an event-driven state machine (ARCHITECTURE §8.2).
@@ -277,9 +304,10 @@ async function execute(
         break;
       }
       case "assignAgent": {
+        const assignee = await pickAutoAssignee(ctx.orgId);
         await prisma.conversation.update({
           where: { id: ctx.conversation.id },
-          data: { status: "AGENT" },
+          data: { status: "AGENT", ...(assignee ? { assignedUserId: assignee } : {}) },
         });
         await prisma.flowRun.update({
           where: { id: runId },

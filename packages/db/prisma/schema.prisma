@@ -218,6 +218,7 @@ model OrgSettings {
   awayEnabled Boolean  @default(false)
   awayMessage String   @default("Thanks for your message! 🌿 Our team is away right now — we'll get back to you during business hours.")
   hoursJSON   Json     @default("{}")
+  autoAssign  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

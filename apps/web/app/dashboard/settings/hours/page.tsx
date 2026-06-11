@@ -42,6 +42,7 @@ export default async function BusinessHoursPage() {
         timezone={s?.timezone ?? "Asia/Kolkata"}
         awayEnabled={s?.awayEnabled ?? false}
         awayMessage={s?.awayMessage ?? "Thanks for your message! 🌿 Our team is away right now — we'll get back to you during business hours."}
+        autoAssign={s?.autoAssign ?? false}
         hours={hours}
       />
     </div>

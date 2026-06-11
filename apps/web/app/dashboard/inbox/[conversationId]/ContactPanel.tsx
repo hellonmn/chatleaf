@@ -4,6 +4,7 @@ import { removeTagAction } from "@/lib/actions/contacts";
 import { ContactTagForm } from "@/components/ContactTagForm";
 import { avatarColor } from "@/lib/avatar";
 import { NotesForm } from "./NotesForm";
+import { AssignControl } from "./AssignControl";
 
 const STAGE_PILL: Record<string, string> = {
   NEW: "bg-canvas text-sub",
@@ -33,10 +34,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function ContactPanel({
   contact,
-  assignedTo,
+  conversationId,
+  assignedUserId,
+  members,
 }: {
   contact: PanelContact;
-  assignedTo: string | null;
+  conversationId: string;
+  assignedUserId: string | null;
+  members: { id: string; name: string }[];
 }) {
   const name = contact.name ?? contact.phone ?? contact.waId;
   const color = avatarColor(name + contact.waId);
@@ -67,7 +72,7 @@ export function ContactPanel({
       </div>
 
       <Section title="Assigned to">
-        <div className="text-sm font-medium text-ink">{assignedTo ?? "Unassigned"}</div>
+        <AssignControl conversationId={conversationId} assignedUserId={assignedUserId} members={members} />
       </Section>
 
       <Section title="Lifecycle stage">

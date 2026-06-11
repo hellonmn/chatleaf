@@ -329,3 +329,36 @@ export async function setConversationStatusAction(
   revalidatePath(`/dashboard/inbox/${parsed.data.conversationId}`);
   revalidatePath("/dashboard/inbox");
 }
+
+/** Assign a conversation to a specific teammate (empty userId = unassign). */
+export async function assignConversationAction(formData: FormData): Promise<void> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return;
+
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const convo = await prisma.conversation.findFirst({
+    where: { id: conversationId, orgId: ctx.orgId },
+    select: { id: true },
+  });
+  if (!convo) return;
+
+  let assignee: string | null = null;
+  if (userId) {
+    const member = await prisma.membership.findFirst({
+      where: { orgId: ctx.orgId, userId },
+      select: { userId: true },
+    });
+    if (!member) return;
+    assignee = member.userId;
+  }
+
+  await prisma.conversation.update({
+    where: { id: convo.id },
+    // Assigning hands the chat to a human; unassigning leaves the status as-is.
+    data: { assignedUserId: assignee, ...(assignee ? { status: "AGENT" } : {}) },
+  });
+  publishInbox(ctx.orgId);
+  revalidatePath(`/dashboard/inbox/${convo.id}`);
+  revalidatePath("/dashboard/inbox");
+}

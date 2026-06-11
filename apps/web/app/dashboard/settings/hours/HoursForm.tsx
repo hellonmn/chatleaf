@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Clock, MoonStar, Check, Loader2 } from "lucide-react";
+import { Clock, MoonStar, Check, Loader2, Users } from "lucide-react";
 import { saveBusinessHoursAction, type SettingsState } from "@/lib/actions/settings";
 
 type Day = { enabled: boolean; open: string; close: string };
@@ -32,17 +32,20 @@ export function HoursForm({
   timezone: tz0,
   awayEnabled: away0,
   awayMessage: msg0,
+  autoAssign: auto0,
   hours: hours0,
 }: {
   timezone: string;
   awayEnabled: boolean;
   awayMessage: string;
+  autoAssign: boolean;
   hours: Hours;
 }) {
   const [state, action] = useActionState<SettingsState, FormData>(saveBusinessHoursAction, undefined);
   const [timezone, setTimezone] = useState(tz0);
   const [awayEnabled, setAwayEnabled] = useState(away0);
   const [awayMessage, setAwayMessage] = useState(msg0);
+  const [autoAssign, setAutoAssign] = useState(auto0);
   const [hours, setHours] = useState<Hours>(hours0);
 
   const setDay = (k: string, patch: Partial<Day>) =>
@@ -52,6 +55,7 @@ export function HoursForm({
     <form action={action} className="space-y-5">
       <input type="hidden" name="hours" value={JSON.stringify(hours)} />
       <input type="hidden" name="awayEnabled" value={awayEnabled ? "true" : "false"} />
+      <input type="hidden" name="autoAssign" value={autoAssign ? "true" : "false"} />
 
       {/* Timezone */}
       <div className="rounded-card border border-line bg-white p-5 shadow-card">
@@ -101,6 +105,17 @@ export function HoursForm({
         {awayEnabled && (
           <textarea name="awayMessage" value={awayMessage} onChange={(e) => setAwayMessage(e.target.value)} rows={3} maxLength={1024} className="mt-3 w-full rounded-btn border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
         )}
+      </div>
+
+      {/* Inbox routing */}
+      <div className="rounded-card border border-line bg-white p-5 shadow-card">
+        <label className="flex items-start gap-2.5">
+          <input type="checkbox" checked={autoAssign} onChange={(e) => setAutoAssign(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand" />
+          <span>
+            <span className="flex items-center gap-1.5 text-sm font-bold text-ink"><Users className="h-4 w-4 text-brand" /> Auto-assign new chats</span>
+            <span className="block text-xs text-sub">When a bot hands a conversation to a human, assign it to the available teammate with the fewest open chats.</span>
+          </span>
+        </label>
       </div>
 
       <div className="flex items-center justify-end gap-3">
