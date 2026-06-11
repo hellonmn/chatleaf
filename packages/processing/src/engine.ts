@@ -307,7 +307,22 @@ async function execute(
         const assignee = await pickAutoAssignee(ctx.orgId);
         await prisma.conversation.update({
           where: { id: ctx.conversation.id },
-          data: { status: "AGENT", ...(assignee ? { assignedUserId: assignee } : {}) },
+          data: { status: "AGENT", lastMessageAt: new Date(), ...(assignee ? { assignedUserId: assignee } : {}) },
+        });
+        // Drop an internal system note so agents can see the handover (+ context).
+        const note = node.data.note?.trim();
+        await prisma.message.create({
+          data: {
+            orgId: ctx.orgId,
+            conversationId: ctx.conversation.id,
+            direction: "OUT",
+            type: "system",
+            payload: {
+              internal: true,
+              text: { body: note ? `🤝 Handed over to a human — ${note}` : "🤝 Handed over to a human" },
+            },
+            status: "SENT",
+          },
         });
         await prisma.flowRun.update({
           where: { id: runId },

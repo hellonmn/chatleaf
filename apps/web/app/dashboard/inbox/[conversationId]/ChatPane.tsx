@@ -22,8 +22,25 @@ export type ChatMessage = {
 export type SavedReply = { id: string; title: string; shortcut: string | null; body: string };
 
 function bodyText(payload: unknown, type: string): string {
-  const p = payload as { text?: { body?: string }; caption?: string } | null;
-  return p?.text?.body ?? p?.caption ?? `[${type}]`;
+  const p = payload as
+    | { text?: { body?: string }; caption?: string; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } }; button?: { text?: string } }
+    | null;
+  return (
+    p?.text?.body ??
+    p?.caption ??
+    p?.interactive?.button_reply?.title ??
+    p?.interactive?.list_reply?.title ??
+    p?.button?.text ??
+    `[${type}]`
+  );
+}
+
+function SystemNote({ text }: { text: string }) {
+  return (
+    <div className="my-2 flex justify-center">
+      <span className="rounded-pill bg-violet/10 px-3 py-1 text-center text-[11px] font-semibold text-violet">{text}</span>
+    </div>
+  );
 }
 
 function Bubble({ m }: { m: ChatMessage }) {
@@ -76,13 +93,11 @@ export function ChatPane({
   messages,
   canSendFreeform,
   savedReplies,
-  aiEnabled,
 }: {
   conversationId: string;
   messages: ChatMessage[];
   canSendFreeform: boolean;
   savedReplies: SavedReply[];
-  aiEnabled: boolean;
 }) {
   const router = useRouter();
   const [optimistic, addOptimistic] = useOptimistic(
@@ -196,7 +211,13 @@ export function ChatPane({
         <div className="mb-2 flex justify-center">
           <span className="rounded-pill bg-white/80 px-3 py-1 text-[11px] font-semibold text-faint shadow-sm">Today</span>
         </div>
-        {optimistic.map((m) => <Bubble key={m.id} m={m} />)}
+        {optimistic.map((m) => {
+          const p = m.payload as { internal?: boolean; text?: { body?: string } } | null;
+          if (m.type === "system" || p?.internal) {
+            return <SystemNote key={m.id} text={p?.text?.body ?? "System update"} />;
+          }
+          return <Bubble key={m.id} m={m} />;
+        })}
       </div>
 
       {/* Composer */}
@@ -210,6 +231,9 @@ export function ChatPane({
           <div className="space-y-2.5">
             {!preview && !text && (
               <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={suggest} disabled={suggesting} title="Draft a reply with AI" className="inline-flex items-center gap-1.5 rounded-pill bg-violet/10 px-3 py-1.5 text-xs font-semibold text-violet hover:bg-violet/15 disabled:opacity-60">
+                  {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Suggest reply
+                </button>
                 {savedReplies.slice(0, 4).map((r) => (
                   <button key={r.id} type="button" onClick={() => applyReply(r)} title={r.body} className="inline-flex max-w-[240px] items-center gap-1.5 rounded-pill bg-canvas px-3 py-1.5 text-xs text-sub hover:bg-line">
                     <Zap className="h-3 w-3 shrink-0 text-warm" />
@@ -272,11 +296,9 @@ export function ChatPane({
                 <div className="flex items-center gap-2 rounded-card border border-line bg-white px-3 py-2">
                   <button type="button" title="Emoji" className="shrink-0 text-faint hover:text-sub"><Smile className="h-5 w-5" /></button>
                   <button type="button" title="Attach" onClick={() => fileRef.current?.click()} className="shrink-0 text-faint hover:text-sub"><Paperclip className="h-5 w-5" /></button>
-                  {aiEnabled && (
-                    <button type="button" title="Suggest a reply (AI)" onClick={suggest} disabled={suggesting} className="shrink-0 text-faint transition-colors hover:text-violet disabled:opacity-50">
-                      {suggesting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                    </button>
-                  )}
+                  <button type="button" title="Suggest a reply with AI" onClick={suggest} disabled={suggesting} className="shrink-0 text-faint transition-colors hover:text-violet disabled:opacity-50">
+                    {suggesting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                  </button>
                   <input
                     ref={inputRef}
                     value={text}
