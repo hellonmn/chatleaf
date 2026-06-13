@@ -3,6 +3,7 @@ import { createRedisConnection } from "./connection";
 
 export { createRedisConnection } from "./connection";
 export { publishInboxEvent, subscribeInboxEvent } from "./realtime";
+export { rateLimit, type RateLimitResult } from "./ratelimit";
 export { Worker, type Job, type ConnectionOptions } from "bullmq";
 
 /** Name of the inbound-webhook processing queue. */

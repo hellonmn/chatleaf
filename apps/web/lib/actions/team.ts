@@ -50,7 +50,7 @@ export async function inviteMemberAction(
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.invite.count({ where: { orgId: ctx.orgId, acceptedAt: null } }),
   ]);
-  const seats = planLimits(ctx.plan).seats;
+  const seats = ctx.seatLimitOverride ?? planLimits(ctx.plan).seats;
   if (members + pendingInvites >= seats) {
     return {
       error: `Your ${ctx.plan} plan allows ${seats} seat(s). Upgrade in Settings → Billing to invite more.`,

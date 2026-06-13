@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/qrcode": "^1.5.6",
     "@watool/db": "*",
+    "@watool/observability": "*",
     "@watool/processing": "*",
     "@watool/queue": "*",
     "@watool/types": "*",

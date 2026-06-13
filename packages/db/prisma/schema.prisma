@@ -31,6 +31,9 @@ model Org {
   name      String
   slug      String   @unique
   plan      Plan     @default(FREE)
+  suspendedAt DateTime? // set by a platform admin to lock the org out of the app
+  adminNotes  String?  // internal platform-admin notes (never shown to the org)
+  seatLimitOverride Int? // when set, overrides the plan's seat limit for this org
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -55,11 +58,43 @@ model User {
   email        String   @unique
   name         String?
   passwordHash String?
+  isPlatformAdmin Boolean @default(false) // SaaS operator: cross-org access via /admin
+  disabledAt   DateTime? // set by a platform admin to block this user from logging in
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   memberships         Membership[]
   assignedConversations Conversation[] @relation("AssignedAgent")
+}
+
+/// A single global banner the platform operator can show across every org's
+/// dashboard (maintenance notices, outages, etc). Managed as a singleton row.
+model PlatformAnnouncement {
+  id        String   @id @default(cuid())
+  message   String
+  level     String   @default("info") // "info" | "warning"
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Append-only trail of platform-admin actions (plan changes, suspensions,
+/// deletes, admin grants, impersonation). Deliberately has NO foreign keys —
+/// targets (especially orgs) can be deleted, so we snapshot a human label and
+/// keep the record for accountability.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String // platform admin user id (no FK on purpose)
+  actorEmail  String
+  action      String // e.g. "org.plan.change", "org.suspend", "org.delete"
+  targetType  String // "org" | "user"
+  targetId    String
+  targetLabel String? // snapshot of org name / user email at action time
+  metadata    Json? // e.g. { "from": "FREE", "to": "PRO" }
+  createdAt   DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
 model Membership {
@@ -220,6 +255,7 @@ model OrgSettings {
   hoursJSON   Json     @default("{}")
   autoAssign  Boolean  @default(false)
   aiApiKeyEnc String? // encrypted Claude API key (per-org, optional)
+  onboardingDismissedAt DateTime? // set when an owner/admin dismisses the first-run setup checklist
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

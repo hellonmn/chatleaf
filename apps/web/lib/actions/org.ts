@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@watool/db";
+import { notify } from "@watool/observability";
 import { auth } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
 
@@ -30,6 +31,13 @@ export async function createOrgAction(
     await tx.membership.create({
       data: { orgId: org.id, userId: session.user!.id, role: "OWNER" },
     });
+  });
+
+  await notify({
+    title: "New workspace signed up",
+    message: `${parsed.data.orgName} just created a workspace.`,
+    level: "info",
+    fields: { org: parsed.data.orgName, owner: session.user.email ?? "—" },
   });
 
   redirect("/dashboard");

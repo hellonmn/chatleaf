@@ -12,6 +12,7 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { timeAgo } from "@/lib/format";
 import { Card, SectionCard } from "@/components/ui/Card";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 
 // ── date helpers ────────────────────────────────────────────────────────────
 function startOfDay(d: Date) {
@@ -105,6 +106,9 @@ export default async function DashboardOverview() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      {/* First-run setup checklist (owners/admins; hides when done/dismissed) */}
+      <OnboardingChecklist orgId={orgId} role={ctx.role} />
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s) => {

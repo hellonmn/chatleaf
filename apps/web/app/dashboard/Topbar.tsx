@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles } from "lucide-react";
+import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck } from "lucide-react";
 import { signOutAction } from "@/lib/actions/signout";
 
 /** Per-route page title + subtitle, mirroring the Chatleaf Portal mockup's META map. */
@@ -43,6 +43,7 @@ export function Topbar({
   plan,
   orgName,
   inboxCount = 0,
+  isPlatformAdmin = false,
 }: {
   name: string | null;
   email: string;
@@ -50,6 +51,7 @@ export function Topbar({
   plan: string;
   orgName: string;
   inboxCount?: number;
+  isPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -189,6 +191,17 @@ export function Topbar({
                 <CreditCard className="h-4 w-4" /> Billing &amp; usage
               </Link>
             </div>
+            {isPlatformAdmin && (
+              <div className="border-t border-line py-1">
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-sm font-semibold text-ink hover:bg-canvas"
+                >
+                  <ShieldCheck className="h-4 w-4 text-brand" /> Admin console
+                </Link>
+              </div>
+            )}
             <form action={signOutAction} className="border-t border-line">
               <button className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-rose hover:bg-rose/5">
                 <LogOut className="h-4 w-4" /> Sign out

@@ -254,7 +254,7 @@ const STOP_WORDS = new Set(["stop", "unsubscribe", "unsub", "optout", "opt out"]
 const START_WORDS = new Set(["start", "subscribe", "unstop", "resume", "optin", "opt in"]);
 
 /** Detect a whole-message opt-out / opt-in keyword (avoids matching "stop by…"). */
-function detectOptKeyword(text: string | undefined): "out" | "in" | null {
+export function detectOptKeyword(text: string | undefined): "out" | "in" | null {
   if (!text) return null;
   const t = text.trim().toLowerCase().replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
   if (STOP_WORDS.has(t)) return "out";
@@ -307,7 +307,7 @@ type OrgHoursSettings = {
 } | null;
 
 /** Is "now" inside the org's configured open hours (in its timezone)? */
-function isWithinBusinessHours(timezone: string, hours: Hours): boolean {
+export function isWithinBusinessHours(timezone: string, hours: Hours): boolean {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone || "UTC",

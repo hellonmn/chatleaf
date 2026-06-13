@@ -2,14 +2,17 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 /**
- * Protects the dashboard. Unauthenticated users hitting /dashboard/* are
- * bounced to /login. Auth.js v5 exposes `auth` as middleware directly.
+ * Protects the dashboard and the platform-admin area. Unauthenticated users
+ * hitting /dashboard/* or /admin/* are bounced to /login. Platform-admin rights
+ * are enforced in the /admin layout (it needs the DB). Auth.js v5 exposes
+ * `auth` as middleware directly.
  */
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
-  const isDashboard = req.nextUrl.pathname.startsWith("/dashboard");
+  const path = req.nextUrl.pathname;
+  const isProtected = path.startsWith("/dashboard") || path.startsWith("/admin");
 
-  if (isDashboard && !isLoggedIn) {
+  if (isProtected && !isLoggedIn) {
     // Clone the incoming URL so the redirect stays on the host the user is on
     // (e.g. an ngrok tunnel), rather than a reconstructed/localhost origin.
     const url = req.nextUrl.clone();
@@ -23,5 +26,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*"],
 };

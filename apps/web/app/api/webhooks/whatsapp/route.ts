@@ -1,14 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@watool/db";
 import { verifyWebhookSignature } from "@watool/wa";
-import { getInboundQueue, isRedisConfigured } from "@watool/queue";
+import { getInboundQueue, isRedisConfigured, rateLimit } from "@watool/queue";
 import { processInboundJob } from "@watool/processing";
+import { logger, captureError } from "@watool/observability";
 
 // Webhooks need Node APIs (crypto, ioredis) and must never be statically cached.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const isDev = process.env.NODE_ENV !== "production";
+
+// Per-IP cap on the public webhook. Generous enough never to drop Meta's
+// delivery volume, but it stops abuse of this unauthenticated, DB-writing route.
+const WEBHOOK_RATE_LIMIT = 600; // requests…
+const WEBHOOK_RATE_WINDOW = 60; // …per 60s, per IP
+
+function clientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
 
 function appSecretConfigured(secret: string | undefined): secret is string {
   return !!secret && !secret.includes("REPLACE_WITH");
@@ -38,6 +49,16 @@ export function GET(req: Request) {
  * doesn't disable the webhook over a transient processing hiccup.
  */
 export async function POST(req: Request) {
+  const ip = clientIp(req);
+  const rl = await rateLimit(`webhook:${ip}`, WEBHOOK_RATE_LIMIT, WEBHOOK_RATE_WINDOW);
+  if (!rl.allowed) {
+    logger.warn("webhook rate-limited", { ip });
+    return new Response("Too Many Requests", {
+      status: 429,
+      headers: { "Retry-After": String(rl.resetSec) },
+    });
+  }
+
   const rawBody = await req.text();
   const appSecret = process.env.META_APP_SECRET;
   const signature = req.headers.get("x-hub-signature-256");
@@ -84,7 +105,7 @@ export async function POST(req: Request) {
       await processInboundJob({ webhookEventId: event.id, raw: parsed });
     }
   } catch (err) {
-    console.error("[webhook] processing/enqueue failed:", err);
+    captureError(err, { scope: "webhook.process" });
   }
 
   return NextResponse.json({ received: true });

@@ -582,7 +582,7 @@ function parseGraph(json: unknown): FlowGraph | null {
 }
 
 /** Follow the outgoing edge (optionally by source handle) to the next node. */
-function nextNode(graph: FlowGraph, fromId: string, sourceHandle?: string): FlowNode | undefined {
+export function nextNode(graph: FlowGraph, fromId: string, sourceHandle?: string): FlowNode | undefined {
   const edge = graph.edges.find(
     (e) =>
       e.source === fromId &&
@@ -593,7 +593,7 @@ function nextNode(graph: FlowGraph, fromId: string, sourceHandle?: string): Flow
 }
 
 /** Follow the edge whose sourceHandle matches EXACTLY (null = the default edge). */
-function edgeTargetExact(
+export function edgeTargetExact(
   graph: FlowGraph,
   fromId: string,
   handle: string | null,
@@ -605,7 +605,7 @@ function edgeTargetExact(
   return graph.nodes.find((n) => n.id === edge.target);
 }
 
-function matchesTrigger(
+export function matchesTrigger(
   data: Extract<FlowNode, { type: "trigger" }>["data"],
   text: string | undefined,
 ): boolean {
@@ -621,7 +621,7 @@ function matchesTrigger(
   return false; // optIn / buttonClick handled elsewhere later
 }
 
-function evalCondition(
+export function evalCondition(
   node: Extract<FlowNode, { type: "condition" }>,
   state: Record<string, unknown>,
   attributes: Record<string, unknown>,
@@ -633,7 +633,7 @@ function evalCondition(
   return node.data.defaultHandle;
 }
 
-function ruleMatches(op: string, actual: unknown, value: string | undefined): boolean {
+export function ruleMatches(op: string, actual: unknown, value: string | undefined): boolean {
   const a = actual == null ? "" : String(actual);
   const v = value ?? "";
   switch (op) {
@@ -648,7 +648,7 @@ function ruleMatches(op: string, actual: unknown, value: string | undefined): bo
   }
 }
 
-function isValid(validation: string, regex: string | undefined, text: string): boolean {
+export function isValid(validation: string, regex: string | undefined, text: string): boolean {
   const t = text.trim();
   switch (validation) {
     case "email": return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
@@ -665,7 +665,7 @@ function safeRegex(pattern: string, text: string): boolean {
 }
 
 /** Replace {{var}} with state vars, then contact attributes. */
-function interpolate(
+export function interpolate(
   template: string,
   state: Record<string, unknown>,
   attributes: Record<string, unknown>,
@@ -676,7 +676,7 @@ function interpolate(
   });
 }
 
-function getPath(obj: Record<string, unknown>, path: string): unknown {
+export function getPath(obj: Record<string, unknown>, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, k) => {
     if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[k];
     return undefined;

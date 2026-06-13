@@ -8,6 +8,7 @@ import {
   type ConnectionOptions,
 } from "@watool/queue";
 import { processInboundJob } from "@watool/processing";
+import { initSentry, captureError, logger } from "@watool/observability";
 
 function requireEnv(name: string): void {
   if (!process.env[name]) {
@@ -20,6 +21,8 @@ requireEnv("DATABASE_URL");
 requireEnv("REDIS_URL");
 requireEnv("ENCRYPTION_KEY");
 
+void initSentry();
+
 const connection = createRedisConnection();
 
 const worker = new Worker<WaInboundJob>(
@@ -31,9 +34,9 @@ const worker = new Worker<WaInboundJob>(
   { connection: connection as unknown as ConnectionOptions, concurrency: 5 },
 );
 
-worker.on("completed", (job) => console.log(`[worker] ✓ job ${job.id} done`));
+worker.on("completed", (job) => logger.info("job done", { jobId: job.id }));
 worker.on("failed", (job, err) =>
-  console.error(`[worker] ✗ job ${job?.id} failed:`, err.message),
+  captureError(err, { scope: "worker.job", jobId: job?.id }),
 );
 
 console.log(`[worker] listening on "${WA_INBOUND_QUEUE}" …`);

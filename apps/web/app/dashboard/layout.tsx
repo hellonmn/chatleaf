@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Eye, Info, AlertTriangle } from "lucide-react";
 import { prisma } from "@watool/db";
 import { planLimits } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { stopImpersonatingAction } from "@/lib/actions/admin";
 import { Wordmark } from "@/components/Wordmark";
 import { DashboardNav } from "./DashboardNav";
 import { Topbar } from "./Topbar";
@@ -12,11 +14,14 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const [members, openChats] = await Promise.all([
+  const [members, openChats, announcement] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
+    prisma.platformAnnouncement.findUnique({ where: { id: "global" } }),
   ]);
-  const seats = planLimits(ctx.plan).seats;
+  const banner = announcement?.active && announcement.message ? announcement : null;
+  const bannerWarning = banner?.level === "warning";
+  const seats = ctx.seatLimitOverride ?? planLimits(ctx.plan).seats;
   const pct = Math.min(100, Math.round((members / seats) * 100));
 
   return (
@@ -47,6 +52,19 @@ export default async function DashboardLayout({
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {ctx.impersonating && (
+          <div className="flex items-center justify-between gap-3 bg-ink px-6 py-2 text-sm text-white">
+            <span className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Viewing <strong className="font-semibold">{ctx.orgName}</strong> as a platform admin
+            </span>
+            <form action={stopImpersonatingAction}>
+              <button className="rounded-pill bg-white/15 px-3 py-1 text-xs font-semibold hover:bg-white/25">
+                Exit impersonation
+              </button>
+            </form>
+          </div>
+        )}
         <Topbar
           name={ctx.name}
           email={ctx.email}
@@ -54,7 +72,22 @@ export default async function DashboardLayout({
           plan={ctx.plan}
           orgName={ctx.orgName}
           inboxCount={openChats}
+          isPlatformAdmin={ctx.isPlatformAdmin}
         />
+        {banner && (
+          <div
+            className={`flex items-center gap-2 px-6 py-2.5 text-sm ${
+              bannerWarning ? "bg-warm/15 text-[#9a5a1e]" : "bg-brand-soft text-brand-ink"
+            }`}
+          >
+            {bannerWarning ? (
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+            ) : (
+              <Info className="h-4 w-4 shrink-0" />
+            )}
+            <span>{banner.message}</span>
+          </div>
+        )}
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>

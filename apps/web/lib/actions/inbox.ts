@@ -18,6 +18,7 @@ import {
   type AiTurn,
 } from "@watool/processing";
 import { canHandleConversations } from "@watool/types";
+import { notify } from "@watool/observability";
 import { requireActiveContext } from "@/lib/session";
 import { publishInbox } from "@/lib/realtime";
 
@@ -26,9 +27,19 @@ export type ActionState = { error?: string; ok?: string } | undefined;
 /** On an auth failure, flag the WhatsApp account so the UI prompts a reconnect. */
 async function flagIfAuthError(orgId: string, isAuth: boolean): Promise<void> {
   if (!isAuth) return;
-  await prisma.whatsAppAccount
-    .updateMany({ where: { orgId }, data: { status: "ERROR" } })
-    .catch(() => {});
+  // Only alert on the transition into ERROR (not on every failed send).
+  const res = await prisma.whatsAppAccount
+    .updateMany({ where: { orgId, status: { not: "ERROR" } }, data: { status: "ERROR" } })
+    .catch(() => ({ count: 0 }));
+  if (res.count > 0) {
+    const org = await prisma.org.findUnique({ where: { id: orgId }, select: { name: true } });
+    await notify({
+      title: "WhatsApp token expired",
+      message: `${org?.name ?? orgId}'s WhatsApp access token is invalid (Meta code 190). Sends are failing until they reconnect.`,
+      level: "critical",
+      fields: { orgId, org: org?.name ?? "—" },
+    });
+  }
 }
 
 const replySchema = z.object({
