@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { razorpayConfigured } from "@/lib/razorpay";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { avatarColor } from "@/lib/avatar";
 import { ContactPanel } from "./ContactPanel";
@@ -104,6 +105,7 @@ export default async function ConversationPage({
         messages={chatMessages}
         canSendFreeform={windowOpen}
         savedReplies={savedReplies}
+        billingLive={razorpayConfigured()}
       />
       </div>
 

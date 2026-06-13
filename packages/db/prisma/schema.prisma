@@ -52,6 +52,7 @@ model Org {
   savedReplies     SavedReply[]
   settings         OrgSettings?
   subscription     Subscription?
+  paymentLinks     PaymentLink[]
 }
 
 model User {
@@ -98,6 +99,29 @@ model PlanConfig {
   trialDays        Int      @default(0) // free-trial length before first charge
   active           Boolean  @default(true)
   updatedAt        DateTime @updatedAt
+}
+
+/// A Razorpay Payment Link sent to a contact inside a conversation. Status is
+/// reconciled from payment_link.* webhooks. Amount is in paise.
+model PaymentLink {
+  id              String    @id @default(cuid())
+  orgId           String
+  conversationId  String?
+  contactId       String?
+  razorpayLinkId  String    @unique
+  shortUrl        String
+  amount          Int // paise
+  description     String?
+  status          String    @default("created") // created|paid|cancelled|expired
+  createdByUserId String?
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([conversationId])
 }
 
 /// Discount codes. Map an app-facing code to a Razorpay Offer applied at

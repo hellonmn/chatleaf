@@ -8,6 +8,7 @@ import { extractMediaRef } from "@/lib/media-ref";
 import { clock } from "@/lib/format";
 import { MediaImage } from "@/components/MediaImage";
 import { sendReplyAction, sendMediaReplyAction, suggestReplyAction, type ActionState } from "@/lib/actions/inbox";
+import { PaymentLinkComposer } from "./PaymentLinkComposer";
 
 export type ChatMessage = {
   id: string;
@@ -93,11 +94,13 @@ export function ChatPane({
   messages,
   canSendFreeform,
   savedReplies,
+  billingLive = false,
 }: {
   conversationId: string;
   messages: ChatMessage[];
   canSendFreeform: boolean;
   savedReplies: SavedReply[];
+  billingLive?: boolean;
 }) {
   const router = useRouter();
   const [optimistic, addOptimistic] = useOptimistic(
@@ -243,6 +246,7 @@ export function ChatPane({
                 <Link href="/dashboard/settings/replies" className="inline-flex items-center gap-1 rounded-pill px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand-soft">
                   <Settings2 className="h-3 w-3" /> {savedReplies.length ? "Manage" : "Add saved replies"}
                 </Link>
+                {billingLive && <PaymentLinkComposer conversationId={conversationId} />}
               </div>
             )}
 

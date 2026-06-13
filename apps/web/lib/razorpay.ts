@@ -79,6 +79,43 @@ export async function createRazorpaySubscription(opts: {
   return (await res.json()) as RazorpaySubscription;
 }
 
+type RazorpayPaymentLink = { id: string; short_url: string; status: string };
+
+/** Create a Razorpay Payment Link (amount in paise). We notify via our own
+ *  WhatsApp message, so Razorpay's own SMS/email notifications stay off. */
+export async function createRazorpayPaymentLink(opts: {
+  amountPaise: number;
+  description?: string;
+  customerName?: string | null;
+  customerContact?: string | null;
+  notes?: Record<string, string>;
+}): Promise<RazorpayPaymentLink> {
+  const res = await fetch(`${API}/payment_links`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: authHeader() },
+    body: JSON.stringify({
+      amount: opts.amountPaise,
+      currency: "INR",
+      description: opts.description || "Payment",
+      ...(opts.customerName || opts.customerContact
+        ? {
+            customer: {
+              ...(opts.customerName ? { name: opts.customerName } : {}),
+              ...(opts.customerContact ? { contact: opts.customerContact } : {}),
+            },
+          }
+        : {}),
+      notify: { sms: false, email: false },
+      reminder_enable: true,
+      notes: opts.notes ?? {},
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Razorpay payment link failed (${res.status}): ${await res.text()}`);
+  }
+  return (await res.json()) as RazorpayPaymentLink;
+}
+
 /** Cancel a subscription immediately. */
 export async function cancelRazorpaySubscription(subscriptionId: string): Promise<void> {
   const res = await fetch(`${API}/subscriptions/${subscriptionId}/cancel`, {

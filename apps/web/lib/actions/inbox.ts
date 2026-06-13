@@ -21,6 +21,7 @@ import { canHandleConversations } from "@watool/types";
 import { notify } from "@watool/observability";
 import { requireActiveContext } from "@/lib/session";
 import { publishInbox } from "@/lib/realtime";
+import { razorpayConfigured, createRazorpayPaymentLink } from "@/lib/razorpay";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -136,6 +137,116 @@ export async function sendReplyAction(
         ? "The 24-hour reply window has closed — an approved template is required (send a Broadcast)."
         : message,
     };
+  }
+}
+
+const paymentLinkSchema = z.object({
+  conversationId: z.string().min(1),
+  amount: z.coerce.number().positive("Enter an amount").max(1_000_000),
+  description: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Send a Razorpay Payment Link into a conversation. Creates the link, drops the
+ * short URL as a WhatsApp message (so it lives in the chat), and records a
+ * PaymentLink the payment_link.* webhook reconciles to "paid".
+ */
+export async function sendPaymentLinkAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) {
+    return { error: "You don't have permission to send payment links." };
+  }
+  if (!razorpayConfigured()) {
+    return { error: "Connect Razorpay first (the RAZORPAY_* env vars)." };
+  }
+
+  const parsed = paymentLinkSchema.safeParse({
+    conversationId: formData.get("conversationId"),
+    amount: formData.get("amount"),
+    description: formData.get("description") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? "Enter a valid amount." };
+  }
+
+  const convo = await prisma.conversation.findFirst({
+    where: { id: parsed.data.conversationId, orgId: ctx.orgId },
+    include: { contact: true, phoneNumber: { include: { account: true } } },
+  });
+  if (!convo) return { error: "Conversation not found." };
+  const tokenEnc = convo.phoneNumber.account.accessTokenEnc;
+  if (!tokenEnc) return { error: "No WhatsApp access token on file." };
+
+  const amountPaise = Math.round(parsed.data.amount * 100);
+  const desc = parsed.data.description || "Payment";
+
+  let link: { id: string; short_url: string };
+  try {
+    link = await createRazorpayPaymentLink({
+      amountPaise,
+      description: desc,
+      customerName: convo.contact.name,
+      customerContact: `+${convo.contact.waId}`,
+      notes: { orgId: ctx.orgId, conversationId: convo.id },
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not create the payment link." };
+  }
+
+  await prisma.paymentLink.create({
+    data: {
+      orgId: ctx.orgId,
+      conversationId: convo.id,
+      contactId: convo.contactId,
+      razorpayLinkId: link.id,
+      shortUrl: link.short_url,
+      amount: amountPaise,
+      description: desc,
+      createdByUserId: ctx.userId,
+    },
+  });
+
+  const body = `${desc}\n💳 Pay ₹${parsed.data.amount.toLocaleString("en-IN")}: ${link.short_url}`;
+  const client = createWhatsAppClient({
+    phoneNumberId: convo.phoneNumber.phoneNumberId,
+    accessToken: decryptSecret(tokenEnc),
+  });
+  const outbound = await prisma.message.create({
+    data: {
+      orgId: ctx.orgId,
+      conversationId: convo.id,
+      direction: "OUT",
+      type: "text",
+      payload: { text: { body }, paymentLink: { id: link.id, amount: amountPaise }, sentByUserId: ctx.userId },
+      status: "QUEUED",
+    },
+  });
+
+  try {
+    const result = await client.sendText(convo.contact.waId, body, convo.windowExpiresAt);
+    await prisma.message.update({
+      where: { id: outbound.id },
+      data: { waMessageId: result.waMessageId, status: "SENT" },
+    });
+    await prisma.conversation.update({
+      where: { id: convo.id },
+      data: { status: "AGENT", assignedUserId: ctx.userId, lastMessageAt: new Date() },
+    });
+    publishInbox(ctx.orgId);
+    revalidatePath(`/dashboard/inbox/${convo.id}`);
+    return { ok: `Payment link for ₹${parsed.data.amount.toLocaleString("en-IN")} sent.` };
+  } catch (err) {
+    const { message, isAuth } = describeWaError(err);
+    await prisma.message.update({
+      where: { id: outbound.id },
+      data: { status: "FAILED", errorJSON: { message } },
+    });
+    await flagIfAuthError(ctx.orgId, isAuth);
+    revalidatePath(`/dashboard/inbox/${convo.id}`);
+    return { error: message };
   }
 }
 

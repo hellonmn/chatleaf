@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, type Plan } from "@watool/db";
 import { PLANS } from "@watool/types";
+import { publishInboxEvent } from "@watool/queue";
 import { logger, captureError, notify } from "@watool/observability";
 import { verifyRazorpayWebhook, planFromRazorpayId } from "@/lib/razorpay";
 
@@ -96,6 +97,49 @@ export async function POST(req: Request) {
               fields: { orgId, org: org?.name ?? "—" },
             });
           }
+        }
+        break;
+      }
+
+      case "payment_link.paid": {
+        const id = body.payload?.payment_link?.entity?.id;
+        if (id) {
+          const row = await prisma.paymentLink.findUnique({ where: { razorpayLinkId: id } });
+          if (row && row.status !== "paid") {
+            await prisma.paymentLink.update({
+              where: { id: row.id },
+              data: { status: "paid", paidAt: new Date() },
+            });
+            if (row.conversationId) {
+              await prisma.message.create({
+                data: {
+                  orgId: row.orgId,
+                  conversationId: row.conversationId,
+                  direction: "OUT",
+                  type: "system",
+                  payload: {
+                    internal: true,
+                    text: { body: `✅ Payment received — ₹${(row.amount / 100).toLocaleString("en-IN")}` },
+                  },
+                  status: "SENT",
+                },
+              });
+            }
+            publishInboxEvent(row.orgId);
+            logger.info("payment link paid", { orgId: row.orgId, amount: row.amount });
+          }
+        }
+        break;
+      }
+
+      case "payment_link.cancelled":
+      case "payment_link.expired": {
+        const id = body.payload?.payment_link?.entity?.id;
+        if (id) {
+          await prisma.paymentLink.updateMany({
+            where: { razorpayLinkId: id },
+            data: { status: event.split(".")[1] },
+          });
         }
         break;
       }
