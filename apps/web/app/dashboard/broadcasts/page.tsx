@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Plus, Send, CheckCheck, Eye, Sprout } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
+import { FeatureDisabled } from "@/components/FeatureDisabled";
 
 const STATUSES = [
   { key: "all", label: "All" },
@@ -28,6 +30,7 @@ export default async function BroadcastsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const ctx = await requireActiveContext();
+  if (!(await getPlatformSettings()).broadcastsEnabled) return <FeatureDisabled name="Broadcasts" />;
   const manage = canManageOrg(ctx.role);
   const { status } = await searchParams;
   const active = status && status !== "all" ? status : "all";

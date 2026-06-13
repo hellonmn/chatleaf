@@ -55,6 +55,7 @@ export async function POST(req: Request) {
 
   try {
     switch (event) {
+      case "subscription.authenticated": // mandate set up (grants trial access)
       case "subscription.activated":
       case "subscription.charged":
       case "subscription.resumed": {

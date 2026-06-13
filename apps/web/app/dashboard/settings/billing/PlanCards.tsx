@@ -1,20 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
-import {
-  PLANS,
-  PLAN_LIMITS,
-  PLAN_PRICING,
-  type PlanName,
-} from "@watool/types";
+import { useActionState, useState } from "react";
+import { type PlanName } from "@watool/types";
+import type { PlanConfig } from "@/lib/plan-config";
 import { changePlanAction, type ActionState } from "@/lib/actions/billing";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export function PlanCards({
+  plans,
   currentPlan,
   isOwner,
   billingLive,
 }: {
+  plans: PlanConfig[];
   currentPlan: PlanName;
   isOwner: boolean;
   billingLive: boolean;
@@ -23,38 +21,57 @@ export function PlanCards({
     changePlanAction,
     undefined,
   );
+  const [code, setCode] = useState("");
+
+  const priceOf = (p: PlanName) => plans.find((x) => x.plan === p)?.priceInr ?? 0;
+  // Hide inactive tiers unless it's the org's current plan.
+  const visible = plans.filter((p) => p.active || p.plan === currentPlan);
 
   return (
     <div className="space-y-3">
+      {billingLive && isOwner && (
+        <div className="flex items-center gap-2">
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Promo code (optional)"
+            className="w-56 rounded-btn border border-slate-300 px-3 py-1.5 text-sm uppercase outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          />
+          {code && <span className="text-xs text-slate-400">applied at checkout</span>}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
-        {PLANS.map((plan) => {
-          const limits = PLAN_LIMITS[plan];
-          const price = PLAN_PRICING[plan];
-          const current = plan === currentPlan;
-          const isUpgrade = price.priceInr > PLAN_PRICING[currentPlan].priceInr;
-          const cta = plan === "FREE" ? "Downgrade" : isUpgrade ? "Upgrade" : "Switch";
+        {visible.map((p) => {
+          const current = p.plan === currentPlan;
+          const isUpgrade = p.priceInr > priceOf(currentPlan);
+          const cta = p.plan === "FREE" ? "Downgrade" : isUpgrade ? "Upgrade" : "Switch";
           return (
             <div
-              key={plan}
+              key={p.plan}
               className={`rounded-lg border p-4 ${
                 current ? "border-brand ring-1 ring-brand" : "border-slate-200"
               }`}
             >
               <div className="flex items-baseline justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">{price.label}</h3>
+                <h3 className="text-sm font-semibold text-slate-900">{p.label}</h3>
                 <div className="text-sm">
                   <span className="font-semibold text-slate-900">
-                    ₹{price.priceInr.toLocaleString("en-IN")}
+                    ₹{p.priceInr.toLocaleString("en-IN")}
                   </span>
                   <span className="text-xs text-slate-400">/mo</span>
                 </div>
               </div>
-              <p className="mt-0.5 text-xs text-slate-400">{price.blurb}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{p.blurb}</p>
+              {p.trialDays > 0 && p.priceInr > 0 && (
+                <p className="mt-1 inline-block rounded-pill bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  {p.trialDays}-day free trial
+                </p>
+              )}
               <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                <li>{limits.seats} seats</li>
-                <li>{limits.contacts.toLocaleString()} contacts</li>
-                <li>{limits.messagesPerMonth.toLocaleString()} msgs / month</li>
-                <li>{limits.publishedFlows} published flows</li>
+                <li>{p.seats} seats</li>
+                <li>{p.contacts.toLocaleString()} contacts</li>
+                <li>{p.messagesPerMonth.toLocaleString()} msgs / month</li>
+                <li>{p.publishedFlows} published flows</li>
               </ul>
               <div className="mt-4">
                 {current ? (
@@ -63,7 +80,8 @@ export function PlanCards({
                   </div>
                 ) : isOwner ? (
                   <form action={action}>
-                    <input type="hidden" name="plan" value={plan} />
+                    <input type="hidden" name="plan" value={p.plan} />
+                    <input type="hidden" name="code" value={code} />
                     <SubmitButton className="w-full">{cta}</SubmitButton>
                   </form>
                 ) : (

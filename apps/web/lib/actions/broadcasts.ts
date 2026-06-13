@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, Prisma } from "@watool/db";
-import { canManageOrg, planLimits } from "@watool/types";
+import { canManageOrg } from "@watool/types";
 import { sendBroadcast, audienceWhere, type AudienceFilter } from "@watool/processing";
 import { requireActiveContext } from "@/lib/session";
 import { startOfMonth } from "@/lib/usage";
+import { getPlanLimits } from "@/lib/plan-config";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -99,7 +100,7 @@ export async function sendBroadcastAction(
     }),
     estimateAudience(ctx.orgId, broadcast.segmentId),
   ]);
-  const quota = planLimits(ctx.plan).messagesPerMonth;
+  const quota = (await getPlanLimits(ctx.plan)).messagesPerMonth;
   if (usedThisMonth + audienceSize > quota) {
     return {
       error: `This send (${audienceSize}) would exceed your ${ctx.plan} monthly limit of ${quota.toLocaleString()} messages (${usedThisMonth.toLocaleString()} used). Upgrade in Settings → Billing.`,

@@ -4,8 +4,9 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@watool/db";
-import { RoleSchema, canManageOrg, planLimits } from "@watool/types";
+import { RoleSchema, canManageOrg } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { getPlanLimits } from "@/lib/plan-config";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -50,7 +51,7 @@ export async function inviteMemberAction(
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.invite.count({ where: { orgId: ctx.orgId, acceptedAt: null } }),
   ]);
-  const seats = ctx.seatLimitOverride ?? planLimits(ctx.plan).seats;
+  const seats = ctx.seatLimitOverride ?? (await getPlanLimits(ctx.plan)).seats;
   if (members + pendingInvites >= seats) {
     return {
       error: `Your ${ctx.plan} plan allows ${seats} seat(s). Upgrade in Settings → Billing to invite more.`,

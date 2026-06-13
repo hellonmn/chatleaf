@@ -2,10 +2,12 @@ import Link from "next/link";
 import { Plus, Copy, Pencil, Search } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { SyncButton } from "./SyncButton";
+import { FeatureDisabled } from "@/components/FeatureDisabled";
 
 const STATUS_BADGE: Record<string, string> = {
   APPROVED: "bg-emerald-50 text-emerald-700",
@@ -53,6 +55,7 @@ export default async function TemplatesPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const ctx = await requireActiveContext();
+  if (!(await getPlatformSettings()).templatesEnabled) return <FeatureDisabled name="Message templates" />;
   const manage = canManageOrg(ctx.role);
   const { category } = await searchParams;
   const active = category && category !== "all" ? category : "all";

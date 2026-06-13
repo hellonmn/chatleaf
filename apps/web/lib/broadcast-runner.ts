@@ -1,7 +1,7 @@
 import { prisma } from "@watool/db";
 import { sendBroadcast, audienceWhere, type AudienceFilter } from "@watool/processing";
-import { planLimits } from "@watool/types";
 import { startOfMonth } from "@/lib/usage";
+import { getPlanLimits } from "@/lib/plan-config";
 
 /**
  * Dispatch any broadcasts whose schedule is due. Each is atomically claimed
@@ -42,7 +42,7 @@ export async function sendDueBroadcasts(): Promise<{
         prisma.contact.count({ where: audienceWhere(b.orgId, filter) }),
       ]);
 
-      const quota = planLimits(b.org.plan).messagesPerMonth;
+      const quota = (await getPlanLimits(b.org.plan)).messagesPerMonth;
       if (used + audience > quota) {
         await prisma.broadcast.update({
           where: { id: b.id },

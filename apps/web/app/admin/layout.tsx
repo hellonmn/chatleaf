@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldCheck, ArrowLeft, LogOut } from "lucide-react";
 import { requirePlatformAdmin } from "@/lib/platform";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { signOutAction } from "@/lib/actions/signout";
 import { AdminNav } from "./AdminNav";
 
@@ -10,6 +11,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const admin = await requirePlatformAdmin();
+  const { brandName } = await getPlatformSettings();
 
   return (
     <div className="flex min-h-screen">
@@ -20,7 +22,7 @@ export default async function AdminLayout({
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div className="leading-tight">
-            <div className="text-sm font-extrabold tracking-tight text-ink">Chatleaf</div>
+            <div className="text-sm font-extrabold tracking-tight text-ink">{brandName}</div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-faint">
               Platform admin
             </div>

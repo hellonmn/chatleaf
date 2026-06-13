@@ -14,11 +14,9 @@ import type { PlanName } from "@watool/types";
 const API = "https://api.razorpay.com/v1";
 
 export function razorpayConfigured(): boolean {
-  return (
-    !!process.env.RAZORPAY_KEY_ID &&
-    !!process.env.RAZORPAY_KEY_SECRET &&
-    (!!process.env.RAZORPAY_PLAN_STARTER || !!process.env.RAZORPAY_PLAN_PRO)
-  );
+  // Plan ids can come from env OR the admin-editable PlanConfig, so we only
+  // require the API keys here; the plan id is checked at checkout time.
+  return !!process.env.RAZORPAY_KEY_ID && !!process.env.RAZORPAY_KEY_SECRET;
 }
 
 /** Razorpay plan id for one of our tiers (FREE has none). */
@@ -57,6 +55,9 @@ type RazorpaySubscription = {
 export async function createRazorpaySubscription(opts: {
   planId: string;
   orgId: string;
+  offerId?: string | null;
+  /** Unix seconds to delay the first charge (free trial). */
+  startAt?: number | null;
   notes?: Record<string, string>;
 }): Promise<RazorpaySubscription> {
   const res = await fetch(`${API}/subscriptions`, {
@@ -67,6 +68,8 @@ export async function createRazorpaySubscription(opts: {
       total_count: 120, // ~10 years of monthly cycles
       quantity: 1,
       customer_notify: 1,
+      ...(opts.offerId ? { offer_id: opts.offerId } : {}),
+      ...(opts.startAt ? { start_at: opts.startAt } : {}),
       notes: { orgId: opts.orgId, ...opts.notes },
     }),
   });

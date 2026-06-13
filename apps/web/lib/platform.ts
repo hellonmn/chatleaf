@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@watool/db";
+import { isAdminIpAllowed, ipFromHeaders } from "@/lib/ip-allowlist";
 
 /**
  * Platform (SaaS-operator) admin authorization — distinct from the per-org
@@ -56,6 +58,12 @@ export async function getPlatformAdmin(): Promise<PlatformAdmin | null> {
 export async function requirePlatformAdmin(): Promise<PlatformAdmin> {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  // Defense-in-depth IP allowlist (middleware also enforces it at the edge).
+  const h = await headers();
+  if (!isAdminIpAllowed(ipFromHeaders(h.get("x-forwarded-for"), h.get("x-real-ip")))) {
+    redirect("/dashboard");
+  }
 
   const admin = await getPlatformAdmin();
   if (!admin) redirect("/dashboard");

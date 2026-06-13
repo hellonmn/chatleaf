@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
 import { createFlowAction, createFlowFromTemplateAction, deleteFlowAction } from "@/lib/actions/flows";
 import { FLOW_TEMPLATES } from "@/lib/flow-templates";
+import { FeatureDisabled } from "@/components/FeatureDisabled";
 
 const STATUS_STYLE: Record<string, string> = {
   PUBLISHED: "bg-emerald-100 text-emerald-700",
@@ -14,6 +16,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default async function FlowsPage() {
   const ctx = await requireActiveContext();
+  if (!(await getPlatformSettings()).flowsEnabled) return <FeatureDisabled name="Automations" />;
   const manage = canManageOrg(ctx.role);
 
   const flows = await prisma.flow.findMany({

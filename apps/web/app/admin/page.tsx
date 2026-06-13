@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Building2, Users, MessageSquare, Ban, ShieldCheck, MessageCircle, AlertTriangle } from "lucide-react";
 import { prisma } from "@watool/db";
-import { PLANS, PLAN_PRICING } from "@watool/types";
+import { PLANS } from "@watool/types";
+import { getPlanConfigs } from "@/lib/plan-config";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { Card, SectionCard } from "@/components/ui/Card";
 import { timeAgo } from "@/lib/format";
@@ -44,7 +45,8 @@ export default async function AdminOverview() {
   const planCount: Record<string, number> = {};
   for (const g of planGroups) planCount[g.plan] = g._count;
   // Real MRR (₹) from active subscriptions.
-  const mrr = activeSubs.reduce((s, sub) => s + PLAN_PRICING[sub.plan].priceInr, 0);
+  const configs = await getPlanConfigs();
+  const mrr = activeSubs.reduce((s, sub) => s + configs[sub.plan].priceInr, 0);
 
   const stats = [
     { label: "Organizations", value: orgs, icon: Building2 },

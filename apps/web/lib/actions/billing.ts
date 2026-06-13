@@ -8,10 +8,10 @@ import { PLANS } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import {
   razorpayConfigured,
-  razorpayPlanId,
   createRazorpaySubscription,
   cancelRazorpaySubscription,
 } from "@/lib/razorpay";
+import { getPlanConfig } from "@/lib/plan-config";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -66,14 +66,38 @@ export async function changePlanAction(
   }
 
   // ── Paid plan with Razorpay: create a subscription + redirect to checkout ──
-  const planId = razorpayPlanId(plan);
+  const config = await getPlanConfig(plan);
+  const planId = config.razorpayPlanId;
   if (!planId) {
     return { error: `The ${plan} plan isn't wired to a Razorpay plan id yet.` };
   }
 
+  // Optional promo code → Razorpay offer.
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+  let coupon: { id: string; razorpayOfferId: string | null } | null = null;
+  if (code) {
+    const c = await prisma.coupon.findUnique({ where: { code } });
+    if (!c || !c.active) return { error: "That promo code isn't valid." };
+    if (c.expiresAt && c.expiresAt.getTime() < Date.now()) return { error: "That promo code has expired." };
+    if (c.maxRedemptions != null && c.redeemedCount >= c.maxRedemptions) {
+      return { error: "That promo code has reached its redemption limit." };
+    }
+    coupon = { id: c.id, razorpayOfferId: c.razorpayOfferId };
+  }
+
+  // Free trial → delay the first charge.
+  const startAt =
+    config.trialDays > 0 ? Math.floor(Date.now() / 1000) + config.trialDays * 86_400 : null;
+
   let shortUrl: string;
   try {
-    const sub = await createRazorpaySubscription({ planId, orgId: ctx.orgId, notes: { plan } });
+    const sub = await createRazorpaySubscription({
+      planId,
+      orgId: ctx.orgId,
+      offerId: coupon?.razorpayOfferId ?? null,
+      startAt,
+      notes: { plan },
+    });
     await prisma.subscription.upsert({
       where: { orgId: ctx.orgId },
       create: {
@@ -84,6 +108,12 @@ export async function changePlanAction(
       },
       update: { razorpaySubscriptionId: sub.id, plan, status: sub.status || "created" },
     });
+    if (coupon) {
+      await prisma.coupon.update({
+        where: { id: coupon.id },
+        data: { redeemedCount: { increment: 1 } },
+      });
+    }
     shortUrl = sub.short_url;
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not start checkout." };

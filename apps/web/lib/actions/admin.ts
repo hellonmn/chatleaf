@@ -129,6 +129,195 @@ export async function updateOrgAction(
   return { ok: "Saved." };
 }
 
+export type PlatformSettingsState = { error?: string; ok?: string } | undefined;
+
+const PLATFORM_SETTINGS_ID = "global";
+
+/** Save global branding + feature flags (singleton). Platform admins only. */
+export async function savePlatformSettingsAction(
+  _prev: PlatformSettingsState,
+  formData: FormData,
+): Promise<PlatformSettingsState> {
+  const actor = await requirePlatformAdmin();
+  const brandName = String(formData.get("brandName") ?? "").trim() || "Chatleaf";
+  const logoUrl = String(formData.get("logoUrl") ?? "").trim() || null;
+  const supportEmail = String(formData.get("supportEmail") ?? "").trim() || null;
+  if (logoUrl && !/^https?:\/\//.test(logoUrl)) {
+    return { error: "Logo URL must start with http(s)://." };
+  }
+  if (supportEmail && !z.string().email().safeParse(supportEmail).success) {
+    return { error: "Enter a valid support email." };
+  }
+  const on = (name: string) => formData.get(name) === "on";
+  const data = {
+    brandName,
+    logoUrl,
+    supportEmail,
+    signupsEnabled: on("signupsEnabled"),
+    broadcastsEnabled: on("broadcastsEnabled"),
+    flowsEnabled: on("flowsEnabled"),
+    templatesEnabled: on("templatesEnabled"),
+    aiEnabled: on("aiEnabled"),
+  };
+
+  await prisma.platformSettings.upsert({
+    where: { id: PLATFORM_SETTINGS_ID },
+    create: { id: PLATFORM_SETTINGS_ID, ...data },
+    update: data,
+  });
+  await logAdminAction({
+    actor,
+    action: "platform.settings",
+    targetType: "user",
+    targetId: actor.userId,
+    metadata: { ...data },
+  });
+  revalidatePath("/admin/settings");
+  revalidatePath("/dashboard");
+  return { ok: "Settings saved." };
+}
+
+export type PlanConfigState = { error?: string; ok?: string } | undefined;
+
+/** Save pricing + limits + Razorpay plan id for one tier. Platform admins only. */
+export async function savePlanConfigAction(
+  _prev: PlanConfigState,
+  formData: FormData,
+): Promise<PlanConfigState> {
+  const actor = await requirePlatformAdmin();
+  const num = z.coerce.number().int();
+  const parsed = z
+    .object({
+      plan: z.enum(PLANS),
+      priceInr: num.min(0),
+      seats: num.min(1),
+      contacts: num.min(0),
+      messagesPerMonth: num.min(0),
+      publishedFlows: num.min(0),
+      trialDays: num.min(0).max(365),
+      razorpayPlanId: z.string().trim().max(100).optional(),
+    })
+    .safeParse({
+      plan: formData.get("plan"),
+      priceInr: formData.get("priceInr"),
+      seats: formData.get("seats"),
+      contacts: formData.get("contacts"),
+      messagesPerMonth: formData.get("messagesPerMonth"),
+      publishedFlows: formData.get("publishedFlows"),
+      trialDays: formData.get("trialDays") ?? 0,
+      razorpayPlanId: formData.get("razorpayPlanId") ?? "",
+    });
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0]?.message ?? "Invalid plan values." };
+  }
+  const d = parsed.data;
+  const data = {
+    priceInr: d.priceInr,
+    seats: d.seats,
+    contacts: d.contacts,
+    messagesPerMonth: d.messagesPerMonth,
+    publishedFlows: d.publishedFlows,
+    trialDays: d.trialDays,
+    razorpayPlanId: d.razorpayPlanId || null,
+    active: formData.get("active") === "on",
+  };
+  await prisma.planConfig.upsert({
+    where: { plan: d.plan },
+    create: { plan: d.plan, ...data },
+    update: data,
+  });
+  await logAdminAction({
+    actor,
+    action: "plan.config",
+    targetType: "user",
+    targetId: actor.userId,
+    targetLabel: d.plan,
+    metadata: { plan: d.plan, priceInr: d.priceInr },
+  });
+  revalidatePath("/admin/plans");
+  revalidatePath("/dashboard/settings/billing");
+  return { ok: `${d.plan} plan saved.` };
+}
+
+export type CouponState = { error?: string; ok?: string } | undefined;
+
+/** Create or update a discount code (keyed by code). Platform admins only. */
+export async function saveCouponAction(
+  _prev: CouponState,
+  formData: FormData,
+): Promise<CouponState> {
+  const actor = await requirePlatformAdmin();
+  const parsed = z
+    .object({
+      code: z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9_-]+$/, "Code: letters, numbers, - or _ only."),
+      razorpayOfferId: z.string().trim().max(100).optional(),
+      description: z.string().trim().max(200).optional(),
+      maxRedemptions: z.coerce.number().int().min(1).optional().or(z.literal("").transform(() => undefined)),
+      expiresAt: z.string().trim().optional(),
+    })
+    .safeParse({
+      code: formData.get("code"),
+      razorpayOfferId: formData.get("razorpayOfferId") ?? "",
+      description: formData.get("description") ?? "",
+      maxRedemptions: formData.get("maxRedemptions") ?? "",
+      expiresAt: formData.get("expiresAt") ?? "",
+    });
+  if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? "Invalid coupon." };
+
+  const code = parsed.data.code.toUpperCase();
+  const expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null;
+  if (expiresAt && Number.isNaN(expiresAt.getTime())) return { error: "Invalid expiry date." };
+
+  const data = {
+    razorpayOfferId: parsed.data.razorpayOfferId || null,
+    description: parsed.data.description || null,
+    maxRedemptions: parsed.data.maxRedemptions ?? null,
+    expiresAt,
+    active: true,
+  };
+  await prisma.coupon.upsert({
+    where: { code },
+    create: { code, ...data },
+    update: data,
+  });
+  await logAdminAction({
+    actor,
+    action: "coupon.save",
+    targetType: "user",
+    targetId: actor.userId,
+    targetLabel: code,
+  });
+  revalidatePath("/admin/coupons");
+  return { ok: `Coupon ${code} saved.` };
+}
+
+/** Toggle a coupon active/inactive. */
+export async function toggleCouponAction(formData: FormData): Promise<void> {
+  await requirePlatformAdmin();
+  const id = String(formData.get("couponId") ?? "");
+  const value = formData.get("value") === "true";
+  if (!id) return;
+  await prisma.coupon.update({ where: { id }, data: { active: value } });
+  revalidatePath("/admin/coupons");
+}
+
+/** Delete a coupon. */
+export async function deleteCouponAction(formData: FormData): Promise<void> {
+  const actor = await requirePlatformAdmin();
+  const id = String(formData.get("couponId") ?? "");
+  if (!id) return;
+  const c = await prisma.coupon.findUnique({ where: { id }, select: { code: true } });
+  await prisma.coupon.delete({ where: { id } }).catch(() => {});
+  await logAdminAction({
+    actor,
+    action: "coupon.delete",
+    targetType: "user",
+    targetId: actor.userId,
+    targetLabel: c?.code,
+  });
+  revalidatePath("/admin/coupons");
+}
+
 export type AnnouncementState = { error?: string; ok?: string } | undefined;
 
 const ANNOUNCEMENT_ID = "global";

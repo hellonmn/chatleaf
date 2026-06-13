@@ -1,5 +1,6 @@
 import { prisma, type Plan } from "@watool/db";
-import { planLimits, type PlanLimits } from "@watool/types";
+import { type PlanLimits } from "@watool/types";
+import { getPlanLimits } from "@/lib/plan-config";
 
 export type Usage = {
   plan: Plan;
@@ -18,18 +19,19 @@ export function startOfMonth(d = new Date()): Date {
 /** Current usage for an org, alongside its plan's limits. */
 export async function getUsage(orgId: string, plan: Plan): Promise<Usage> {
   const monthStart = startOfMonth();
-  const [members, contacts, messagesThisMonth, publishedFlows] = await Promise.all([
+  const [members, contacts, messagesThisMonth, publishedFlows, limits] = await Promise.all([
     prisma.membership.count({ where: { orgId } }),
     prisma.contact.count({ where: { orgId } }),
     prisma.message.count({
       where: { orgId, direction: "OUT", createdAt: { gte: monthStart } },
     }),
     prisma.flow.count({ where: { orgId, status: "PUBLISHED" } }),
+    getPlanLimits(plan),
   ]);
 
   return {
     plan,
-    limits: planLimits(plan),
+    limits,
     members,
     contacts,
     messagesThisMonth,

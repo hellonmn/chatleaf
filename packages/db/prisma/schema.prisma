@@ -85,6 +85,52 @@ model Subscription {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
+/// Admin-editable pricing + limits per plan tier. One row per Plan enum value;
+/// missing values fall back to the hardcoded defaults in @watool/types.
+model PlanConfig {
+  plan             Plan     @id
+  priceInr         Int
+  seats            Int
+  contacts         Int
+  messagesPerMonth Int
+  publishedFlows   Int
+  razorpayPlanId   String?
+  trialDays        Int      @default(0) // free-trial length before first charge
+  active           Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+}
+
+/// Discount codes. Map an app-facing code to a Razorpay Offer applied at
+/// checkout. Razorpay computes the actual discount; we track usage + validity.
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  razorpayOfferId String? // Razorpay Offer id (offer_…) applied to the subscription
+  description     String?
+  active          Boolean   @default(true)
+  maxRedemptions  Int?
+  redeemedCount   Int       @default(0)
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Global platform configuration (singleton, id="global"): white-label branding
+/// and feature on/off flags the operator controls from /admin/settings.
+model PlatformSettings {
+  id                String   @id @default("global")
+  brandName         String   @default("Chatleaf")
+  logoUrl           String?
+  supportEmail      String?
+  signupsEnabled    Boolean  @default(true)
+  broadcastsEnabled Boolean  @default(true)
+  flowsEnabled      Boolean  @default(true)
+  templatesEnabled  Boolean  @default(true)
+  aiEnabled         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 /// A single global banner the platform operator can show across every org's
 /// dashboard (maintenance notices, outages, etc). Managed as a singleton row.
 model PlatformAnnouncement {

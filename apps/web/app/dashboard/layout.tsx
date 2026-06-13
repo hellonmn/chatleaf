@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Eye, Info, AlertTriangle } from "lucide-react";
 import { prisma } from "@watool/db";
-import { planLimits } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { getPlatformSettings } from "@/lib/platform-settings";
+import { getPlanLimits } from "@/lib/plan-config";
 import { stopImpersonatingAction } from "@/lib/actions/admin";
-import { Wordmark } from "@/components/Wordmark";
+import { BrandMark } from "@/components/BrandMark";
 import { DashboardNav } from "./DashboardNav";
 import { Topbar } from "./Topbar";
 
@@ -14,14 +15,16 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const [members, openChats, announcement] = await Promise.all([
+  const [members, openChats, announcement, settings, limits] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
     prisma.platformAnnouncement.findUnique({ where: { id: "global" } }),
+    getPlatformSettings(),
+    getPlanLimits(ctx.plan),
   ]);
   const banner = announcement?.active && announcement.message ? announcement : null;
   const bannerWarning = banner?.level === "warning";
-  const seats = ctx.seatLimitOverride ?? planLimits(ctx.plan).seats;
+  const seats = ctx.seatLimitOverride ?? limits.seats;
   const pct = Math.min(100, Math.round((members / seats) * 100));
 
   return (
@@ -29,9 +32,16 @@ export default async function DashboardLayout({
       {/* Sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white md:flex">
         <div className="flex items-center px-5 py-4">
-          <Wordmark size={24} />
+          <BrandMark brandName={settings.brandName} logoUrl={settings.logoUrl} size={24} />
         </div>
-        <DashboardNav inboxCount={openChats} />
+        <DashboardNav
+          inboxCount={openChats}
+          features={{
+            broadcasts: settings.broadcastsEnabled,
+            flows: settings.flowsEnabled,
+            templates: settings.templatesEnabled,
+          }}
+        />
         <div className="p-3">
           <div className="rounded-card bg-brand-soft p-3 text-center">
             <div className="text-sm font-bold text-brand-ink">

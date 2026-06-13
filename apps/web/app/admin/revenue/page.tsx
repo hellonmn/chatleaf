@@ -1,7 +1,8 @@
 import { DollarSign, TrendingUp, CreditCard, Users } from "lucide-react";
 import { prisma } from "@watool/db";
-import { PLANS, PLAN_PRICING } from "@watool/types";
+import { PLANS } from "@watool/types";
 import { requirePlatformAdmin } from "@/lib/platform";
+import { getPlanConfigs } from "@/lib/plan-config";
 import { Card, SectionCard } from "@/components/ui/Card";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -12,6 +13,7 @@ function inr(n: number) {
 
 export default async function AdminRevenuePage() {
   await requirePlatformAdmin();
+  const configs = await getPlanConfigs();
 
   const [activeSubs, subStatus, planGroups, signups] = await Promise.all([
     // Real recurring revenue: active subscriptions only.
@@ -28,10 +30,10 @@ export default async function AdminRevenuePage() {
   // Real MRR from active subscriptions, per plan.
   const activeByPlan: Record<string, number> = {};
   for (const s of activeSubs) activeByPlan[s.plan] = (activeByPlan[s.plan] ?? 0) + 1;
-  const rows = PLANS.filter((p) => PLAN_PRICING[p].priceInr > 0).map((p) => {
+  const rows = PLANS.filter((p) => configs[p].priceInr > 0).map((p) => {
     const count = activeByPlan[p] ?? 0;
-    const unit = PLAN_PRICING[p].priceInr;
-    return { plan: p, label: PLAN_PRICING[p].label, count, unit, subtotal: count * unit };
+    const unit = configs[p].priceInr;
+    return { plan: p, label: configs[p].label, count, unit, subtotal: count * unit };
   });
   const mrr = rows.reduce((s, r) => s + r.subtotal, 0);
   const activeCount = activeSubs.length;
@@ -39,7 +41,7 @@ export default async function AdminRevenuePage() {
 
   // Plan-based estimate (includes test-mode/manually-set plans without a sub).
   const estMrr = PLANS.reduce(
-    (s, p) => s + ((planGroups.find((g) => g.plan === p)?._count ?? 0) * PLAN_PRICING[p].priceInr),
+    (s, p) => s + ((planGroups.find((g) => g.plan === p)?._count ?? 0) * configs[p].priceInr),
     0,
   );
 

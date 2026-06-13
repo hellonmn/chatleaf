@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, Play, LogIn, Trash2, AlertTriangle } from "lucide-react";
 import { prisma } from "@watool/db";
-import { PLANS, planLimits, PLAN_PRICING } from "@watool/types";
+import { PLANS, PLAN_PRICING } from "@watool/types";
 import { requirePlatformAdmin } from "@/lib/platform";
+import { getPlanLimits } from "@/lib/plan-config";
 import { Card, SectionCard } from "@/components/ui/Card";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { EditOrgForm } from "./EditOrgForm";
@@ -75,6 +76,7 @@ export default async function AdminOrgDetailPage({
     flowsTotal,
     broadcasts,
     lastMessage,
+    subscription,
   ] = await Promise.all([
     prisma.contact.count({ where: { orgId } }),
     prisma.message.count({
@@ -94,9 +96,10 @@ export default async function AdminOrgDetailPage({
       orderBy: { createdAt: "desc" },
       select: { createdAt: true },
     }),
+    prisma.subscription.findUnique({ where: { orgId } }),
   ]);
 
-  const limits = planLimits(org.plan);
+  const limits = await getPlanLimits(org.plan);
   const suspended = !!org.suspendedAt;
 
   return (
@@ -182,6 +185,41 @@ export default async function AdminOrgDetailPage({
               Update plan
             </button>
           </form>
+
+          <div className="mt-4 border-t border-line pt-3 text-sm">
+            <div className="mb-1 text-xs font-bold uppercase tracking-wide text-faint">
+              Billing
+            </div>
+            {subscription ? (
+              <div className="space-y-1 text-sub">
+                <div className="flex items-center justify-between">
+                  <span>Razorpay subscription</span>
+                  <span
+                    className={`rounded-pill px-2 py-0.5 text-xs font-semibold ${
+                      subscription.status === "active"
+                        ? "bg-brand-soft text-brand-ink"
+                        : subscription.status === "halted"
+                          ? "bg-rose/10 text-rose"
+                          : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {subscription.status}
+                  </span>
+                </div>
+                {subscription.currentEnd && (
+                  <div className="flex items-center justify-between">
+                    <span>Renews</span>
+                    <span className="text-ink">{subscription.currentEnd.toLocaleDateString()}</span>
+                  </div>
+                )}
+                {subscription.razorpaySubscriptionId && (
+                  <div className="truncate text-xs text-faint">{subscription.razorpaySubscriptionId}</div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sub">No subscription (plan set manually or on Free).</div>
+            )}
+          </div>
         </SectionCard>
       </div>
 

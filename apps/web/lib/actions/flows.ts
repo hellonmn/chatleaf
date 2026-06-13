@@ -8,10 +8,10 @@ import {
   FlowGraphSchema,
   validateFlowGraph,
   canManageOrg,
-  planLimits,
   type FlowGraph,
 } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { getPlanLimits } from "@/lib/plan-config";
 
 export type SaveState = { error?: string; ok?: string } | undefined;
 
@@ -159,7 +159,7 @@ export async function publishFlowAction(
     const publishedCount = await prisma.flow.count({
       where: { orgId: ctx.orgId, status: "PUBLISHED" },
     });
-    const limit = planLimits(ctx.plan).publishedFlows;
+    const limit = (await getPlanLimits(ctx.plan)).publishedFlows;
     if (publishedCount >= limit) {
       return {
         error: `Your ${ctx.plan} plan allows ${limit} published flow(s). Upgrade in Settings → Billing.`,

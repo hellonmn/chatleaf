@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Users, ScrollText, MessageCircle, DollarSign, Megaphone, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, Users, ScrollText, MessageCircle, DollarSign, Megaphone, Settings, CreditCard, Ticket, type LucideIcon } from "lucide-react";
 
 const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/orgs", label: "Organizations", icon: Building2 },
+  { href: "/admin/plans", label: "Plans", icon: CreditCard },
+  { href: "/admin/coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/revenue", label: "Revenue", icon: DollarSign },
   { href: "/admin/health", label: "WhatsApp health", icon: MessageCircle },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/announcement", label: "Announcement", icon: Megaphone },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminNav() {

@@ -1,6 +1,7 @@
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getUsage } from "@/lib/usage";
+import { getPlanConfigs } from "@/lib/plan-config";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { PlanCards } from "./PlanCards";
 
@@ -29,6 +30,7 @@ export default async function BillingPage() {
   const usage = await getUsage(ctx.orgId, ctx.plan);
   const subscription = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
   const billingLive = razorpayConfigured();
+  const plans = Object.values(await getPlanConfigs());
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -60,6 +62,7 @@ export default async function BillingPage() {
       <section>
         <h2 className="mb-3 text-sm font-semibold text-slate-900">Plans</h2>
         <PlanCards
+          plans={plans}
           currentPlan={usage.plan}
           isOwner={ctx.role === "OWNER"}
           billingLive={billingLive}

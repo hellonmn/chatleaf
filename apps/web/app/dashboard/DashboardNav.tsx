@@ -13,21 +13,30 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
+type Feature = "broadcasts" | "flows" | "templates";
+
+const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean; feature?: Feature }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
-  { href: "/dashboard/broadcasts", label: "Broadcasts", icon: Megaphone },
-  { href: "/dashboard/flows", label: "Automations", icon: Workflow },
-  { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/dashboard/broadcasts", label: "Broadcasts", icon: Megaphone, feature: "broadcasts" },
+  { href: "/dashboard/flows", label: "Automations", icon: Workflow, feature: "flows" },
+  { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate, feature: "templates" },
   { href: "/dashboard/settings/whatsapp", label: "Channels", icon: MessageCircle },
 ];
 
-export function DashboardNav({ inboxCount = 0 }: { inboxCount?: number }) {
+export function DashboardNav({
+  inboxCount = 0,
+  features,
+}: {
+  inboxCount?: number;
+  features?: Record<Feature, boolean>;
+}) {
   const pathname = usePathname();
+  const items = NAV.filter((item) => !item.feature || features?.[item.feature] !== false);
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-      {NAV.map((item) => {
+      {items.map((item) => {
         const active = item.exact
           ? pathname === item.href
           : pathname.startsWith(item.href);

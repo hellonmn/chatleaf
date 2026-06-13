@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@watool/db";
 import { signIn } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 export type ActionState = { error?: string } | undefined;
 
@@ -24,6 +25,9 @@ export async function signupAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getPlatformSettings()).signupsEnabled) {
+    return { error: "New signups are currently disabled. Please contact support." };
+  }
   const parsed = signupSchema.safeParse({
     name: formData.get("name"),
     orgName: formData.get("orgName"),

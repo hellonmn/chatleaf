@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { isAdminIpAllowed, ipFromHeaders } from "@/lib/ip-allowlist";
 
 /**
  * Protects the dashboard and the platform-admin area. Unauthenticated users
@@ -10,7 +11,19 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const path = req.nextUrl.pathname;
-  const isProtected = path.startsWith("/dashboard") || path.startsWith("/admin");
+  const isAdmin = path.startsWith("/admin");
+  const isProtected = path.startsWith("/dashboard") || isAdmin;
+
+  // IP allowlist for the admin area (no-op unless ADMIN_IP_ALLOWLIST is set).
+  if (isAdmin) {
+    const ip = ipFromHeaders(
+      req.headers.get("x-forwarded-for"),
+      req.headers.get("x-real-ip"),
+    );
+    if (!isAdminIpAllowed(ip)) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+  }
 
   if (isProtected && !isLoggedIn) {
     // Clone the incoming URL so the redirect stays on the host the user is on
