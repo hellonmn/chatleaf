@@ -1,5 +1,7 @@
+import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getUsage } from "@/lib/usage";
+import { razorpayConfigured } from "@/lib/razorpay";
 import { PlanCards } from "./PlanCards";
 
 function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
@@ -25,6 +27,8 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
 export default async function BillingPage() {
   const ctx = await requireActiveContext();
   const usage = await getUsage(ctx.orgId, ctx.plan);
+  const subscription = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
+  const billingLive = razorpayConfigured();
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -43,9 +47,23 @@ export default async function BillingPage() {
         <Meter label="Published flows" used={usage.publishedFlows} limit={usage.limits.publishedFlows} />
       </section>
 
+      {subscription?.status === "active" && (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Subscribed via Razorpay
+          {subscription.currentEnd
+            ? ` · renews ${subscription.currentEnd.toLocaleDateString()}`
+            : ""}
+          .
+        </section>
+      )}
+
       <section>
         <h2 className="mb-3 text-sm font-semibold text-slate-900">Plans</h2>
-        <PlanCards currentPlan={usage.plan} isOwner={ctx.role === "OWNER"} />
+        <PlanCards
+          currentPlan={usage.plan}
+          isOwner={ctx.role === "OWNER"}
+          billingLive={billingLive}
+        />
       </section>
     </div>
   );

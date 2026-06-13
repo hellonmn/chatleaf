@@ -19,10 +19,13 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   PRO: { seats: 25, contacts: 50_000, messagesPerMonth: 100_000, publishedFlows: 100 },
 };
 
-export const PLAN_PRICING: Record<PlanName, { label: string; priceUsd: number; blurb: string }> = {
-  FREE: { label: "Free", priceUsd: 0, blurb: "Kick the tyres" },
-  STARTER: { label: "Starter", priceUsd: 29, blurb: "For small teams" },
-  PRO: { label: "Pro", priceUsd: 99, blurb: "For growing businesses" },
+export const PLAN_PRICING: Record<
+  PlanName,
+  { label: string; priceUsd: number; priceInr: number; blurb: string }
+> = {
+  FREE: { label: "Free", priceUsd: 0, priceInr: 0, blurb: "Kick the tyres" },
+  STARTER: { label: "Starter", priceUsd: 29, priceInr: 2400, blurb: "For small teams" },
+  PRO: { label: "Pro", priceUsd: 99, priceInr: 8000, blurb: "For growing businesses" },
 };
 
 export function planLimits(plan: PlanName): PlanLimits {

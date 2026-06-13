@@ -51,6 +51,7 @@ model Org {
   broadcasts       Broadcast[]
   savedReplies     SavedReply[]
   settings         OrgSettings?
+  subscription     Subscription?
 }
 
 model User {
@@ -65,6 +66,23 @@ model User {
 
   memberships         Membership[]
   assignedConversations Conversation[] @relation("AssignedAgent")
+}
+
+/// Razorpay subscription state for an org (1:1). Org.plan stays the source of
+/// truth for limits; webhooks flip it when a subscription activates/ends.
+model Subscription {
+  id                     String    @id @default(cuid())
+  orgId                  String    @unique
+  provider               String    @default("razorpay")
+  razorpaySubscriptionId String?   @unique
+  razorpayCustomerId     String?
+  plan                   Plan // the tier this subscription pays for
+  status                 String    @default("created") // created|authenticated|active|halted|cancelled|completed
+  currentEnd             DateTime? // end of the paid period
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 /// A single global banner the platform operator can show across every org's

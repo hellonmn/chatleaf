@@ -13,9 +13,11 @@ import { SubmitButton } from "@/components/SubmitButton";
 export function PlanCards({
   currentPlan,
   isOwner,
+  billingLive,
 }: {
   currentPlan: PlanName;
   isOwner: boolean;
+  billingLive: boolean;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     changePlanAction,
@@ -29,6 +31,8 @@ export function PlanCards({
           const limits = PLAN_LIMITS[plan];
           const price = PLAN_PRICING[plan];
           const current = plan === currentPlan;
+          const isUpgrade = price.priceInr > PLAN_PRICING[currentPlan].priceInr;
+          const cta = plan === "FREE" ? "Downgrade" : isUpgrade ? "Upgrade" : "Switch";
           return (
             <div
               key={plan}
@@ -39,7 +43,9 @@ export function PlanCards({
               <div className="flex items-baseline justify-between">
                 <h3 className="text-sm font-semibold text-slate-900">{price.label}</h3>
                 <div className="text-sm">
-                  <span className="font-semibold text-slate-900">${price.priceUsd}</span>
+                  <span className="font-semibold text-slate-900">
+                    ₹{price.priceInr.toLocaleString("en-IN")}
+                  </span>
                   <span className="text-xs text-slate-400">/mo</span>
                 </div>
               </div>
@@ -58,11 +64,7 @@ export function PlanCards({
                 ) : isOwner ? (
                   <form action={action}>
                     <input type="hidden" name="plan" value={plan} />
-                    <SubmitButton className="w-full">
-                      {PLAN_PRICING[plan].priceUsd > PLAN_PRICING[currentPlan].priceUsd
-                        ? "Upgrade"
-                        : "Switch"}
-                    </SubmitButton>
+                    <SubmitButton className="w-full">{cta}</SubmitButton>
                   </form>
                 ) : (
                   <div className="py-1.5 text-center text-xs text-slate-400">Owner only</div>
@@ -80,8 +82,9 @@ export function PlanCards({
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{state.ok}</p>
       )}
       <p className="text-xs text-slate-400">
-        Switching is instant here for testing. In production this is where Stripe
-        Checkout / customer-portal flows plug in.
+        {billingLive
+          ? "Upgrades open Razorpay's secure checkout; your plan activates once payment is confirmed. Downgrading to Free cancels your subscription."
+          : "Razorpay isn't configured yet, so plan switches apply instantly (test mode). Set the RAZORPAY_* env vars to enable real billing."}
       </p>
     </div>
   );

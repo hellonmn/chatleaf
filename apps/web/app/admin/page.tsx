@@ -15,7 +15,7 @@ const PLAN_STYLE: Record<string, string> = {
 export default async function AdminOverview() {
   await requirePlatformAdmin();
 
-  const [orgs, suspended, users, platformAdmins, contacts, messages, planGroups, recentOrgs, waTotal, waAttention] =
+  const [orgs, suspended, users, platformAdmins, contacts, messages, planGroups, recentOrgs, waTotal, waAttention, activeSubs] =
     await Promise.all([
       prisma.org.count(),
       prisma.org.count({ where: { suspendedAt: { not: null } } }),
@@ -38,11 +38,13 @@ export default async function AdminOverview() {
           ],
         },
       }),
+      prisma.subscription.findMany({ where: { status: "active" }, select: { plan: true } }),
     ]);
 
   const planCount: Record<string, number> = {};
   for (const g of planGroups) planCount[g.plan] = g._count;
-  const estMrr = PLANS.reduce((s, p) => s + (planCount[p] ?? 0) * PLAN_PRICING[p].priceUsd, 0);
+  // Real MRR (₹) from active subscriptions.
+  const mrr = activeSubs.reduce((s, sub) => s + PLAN_PRICING[sub.plan].priceInr, 0);
 
   const stats = [
     { label: "Organizations", value: orgs, icon: Building2 },
@@ -125,9 +127,9 @@ export default async function AdminOverview() {
                 </div>
               ))}
               <div className="flex items-center justify-between border-t border-line pt-3">
-                <span className="text-sm font-semibold text-sub">Est. MRR</span>
+                <span className="text-sm font-semibold text-sub">MRR</span>
                 <span className="font-extrabold text-brand">
-                  ${estMrr.toLocaleString()}
+                  ₹{mrr.toLocaleString("en-IN")}
                 </span>
               </div>
             </div>
