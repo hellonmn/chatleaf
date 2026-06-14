@@ -70,6 +70,32 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
         </div>
       </section>
 
+      <section className="space-y-3">
+        <h3 className="text-base font-bold text-ink">Payments (Razorpay)</h3>
+        <p className="-mt-1 text-sm text-sub">
+          Keys from Razorpay Dashboard → Settings → API Keys. Stored encrypted;
+          these override the env vars. Point the webhook at <code>/api/webhooks/razorpay</code>.
+        </p>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sub">Key ID</label>
+          <input name="razorpayKeyId" defaultValue={settings.razorpayKeyId ?? ""} placeholder="rzp_live_…" className={field} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">
+              Key Secret {settings.razorpayKeySecretSet && <span className="text-emerald-600">· set</span>}
+            </label>
+            <input name="razorpayKeySecret" type="password" autoComplete="off" placeholder={settings.razorpayKeySecretSet ? "•••••• (leave blank to keep)" : "Key secret"} className={field} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">
+              Webhook Secret {settings.razorpayWebhookSecretSet && <span className="text-emerald-600">· set</span>}
+            </label>
+            <input name="razorpayWebhookSecret" type="password" autoComplete="off" placeholder={settings.razorpayWebhookSecretSet ? "•••••• (leave blank to keep)" : "Webhook secret"} className={field} />
+          </div>
+        </div>
+      </section>
+
       <section className="space-y-2">
         <h3 className="text-base font-bold text-ink">Features</h3>
         <p className="-mt-1 text-sm text-sub">Turn product areas off across every workspace.</p>

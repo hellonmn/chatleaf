@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@watool/db";
+import { encryptSecret } from "@watool/wa";
 import { PLANS } from "@watool/types";
 import { requirePlatformAdmin, getPlatformAdmin } from "@/lib/platform";
 import { IMPERSONATE_ORG_COOKIE } from "@/lib/session";
@@ -152,6 +153,12 @@ export async function savePlatformSettingsAction(
   }
   const on = (name: string) => formData.get(name) === "on";
   const gstPercentRaw = Number(formData.get("gstPercent"));
+
+  // Razorpay secrets: blank input keeps the existing value (they're never shown).
+  const existing = await prisma.platformSettings.findUnique({ where: { id: PLATFORM_SETTINGS_ID } });
+  const keySecretInput = String(formData.get("razorpayKeySecret") ?? "").trim();
+  const webhookSecretInput = String(formData.get("razorpayWebhookSecret") ?? "").trim();
+
   const data = {
     brandName,
     logoUrl,
@@ -166,6 +173,9 @@ export async function savePlatformSettingsAction(
     gstin: String(formData.get("gstin") ?? "").trim() || null,
     gstPercent: Number.isFinite(gstPercentRaw) && gstPercentRaw >= 0 && gstPercentRaw <= 100 ? Math.round(gstPercentRaw) : 18,
     invoicePrefix: String(formData.get("invoicePrefix") ?? "").trim() || "INV",
+    razorpayKeyId: String(formData.get("razorpayKeyId") ?? "").trim() || null,
+    razorpayKeySecretEnc: keySecretInput ? encryptSecret(keySecretInput) : existing?.razorpayKeySecretEnc ?? null,
+    razorpayWebhookSecretEnc: webhookSecretInput ? encryptSecret(webhookSecretInput) : existing?.razorpayWebhookSecretEnc ?? null,
   };
 
   await prisma.platformSettings.upsert({

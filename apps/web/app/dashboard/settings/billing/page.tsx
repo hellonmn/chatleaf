@@ -29,7 +29,7 @@ export default async function BillingPage() {
   const ctx = await requireActiveContext();
   const usage = await getUsage(ctx.orgId, ctx.plan);
   const subscription = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
-  const billingLive = razorpayConfigured();
+  const billingLive = await razorpayConfigured();
   const plans = Object.values(await getPlanConfigs());
   const invoices = await prisma.invoice.findMany({
     where: { orgId: ctx.orgId },

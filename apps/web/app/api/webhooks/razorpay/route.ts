@@ -41,7 +41,7 @@ function planFor(sub: SubEntity | undefined): Plan | null {
  */
 export async function POST(req: Request) {
   const raw = await req.text();
-  if (!verifyRazorpayWebhook(raw, req.headers.get("x-razorpay-signature"))) {
+  if (!(await verifyRazorpayWebhook(raw, req.headers.get("x-razorpay-signature")))) {
     logger.warn("razorpay webhook signature invalid");
     return new Response("Invalid signature", { status: 401 });
   }

@@ -159,8 +159,8 @@ export async function sendPaymentLinkAction(
   if (!canHandleConversations(ctx.role)) {
     return { error: "You don't have permission to send payment links." };
   }
-  if (!razorpayConfigured()) {
-    return { error: "Connect Razorpay first (the RAZORPAY_* env vars)." };
+  if (!(await razorpayConfigured())) {
+    return { error: "Connect Razorpay first (set the keys in Admin → Settings)." };
   }
 
   const parsed = paymentLinkSchema.safeParse({

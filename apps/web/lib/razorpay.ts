@@ -1,4 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { cache } from "react";
+import { prisma } from "@watool/db";
+import { decryptSecret } from "@watool/wa";
 import type { PlanName } from "@watool/types";
 
 /**
@@ -13,10 +16,26 @@ import type { PlanName } from "@watool/types";
 
 const API = "https://api.razorpay.com/v1";
 
-export function razorpayConfigured(): boolean {
-  // Plan ids can come from env OR the admin-editable PlanConfig, so we only
-  // require the API keys here; the plan id is checked at checkout time.
-  return !!process.env.RAZORPAY_KEY_ID && !!process.env.RAZORPAY_KEY_SECRET;
+/** Resolved Razorpay credentials: admin-set (DB, encrypted) over env fallback. */
+export const getRazorpayCreds = cache(async () => {
+  const s = await prisma.platformSettings.findUnique({
+    where: { id: "global" },
+    select: { razorpayKeyId: true, razorpayKeySecretEnc: true, razorpayWebhookSecretEnc: true },
+  });
+  return {
+    keyId: s?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || null,
+    keySecret: s?.razorpayKeySecretEnc
+      ? decryptSecret(s.razorpayKeySecretEnc)
+      : process.env.RAZORPAY_KEY_SECRET || null,
+    webhookSecret: s?.razorpayWebhookSecretEnc
+      ? decryptSecret(s.razorpayWebhookSecretEnc)
+      : process.env.RAZORPAY_WEBHOOK_SECRET || null,
+  };
+});
+
+export async function razorpayConfigured(): Promise<boolean> {
+  const { keyId, keySecret } = await getRazorpayCreds();
+  return !!keyId && !!keySecret;
 }
 
 /** Razorpay plan id for one of our tiers (FREE has none). */
@@ -34,11 +53,9 @@ export function planFromRazorpayId(planId: string | undefined): PlanName | null 
   return null;
 }
 
-function authHeader(): string {
-  const token = Buffer.from(
-    `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`,
-  ).toString("base64");
-  return `Basic ${token}`;
+async function authHeader(): Promise<string> {
+  const { keyId, keySecret } = await getRazorpayCreds();
+  return `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
 }
 
 type RazorpaySubscription = {
@@ -62,7 +79,7 @@ export async function createRazorpaySubscription(opts: {
 }): Promise<RazorpaySubscription> {
   const res = await fetch(`${API}/subscriptions`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: authHeader() },
+    headers: { "content-type": "application/json", authorization: await authHeader() },
     body: JSON.stringify({
       plan_id: opts.planId,
       total_count: 120, // ~10 years of monthly cycles
@@ -92,7 +109,7 @@ export async function createRazorpayPaymentLink(opts: {
 }): Promise<RazorpayPaymentLink> {
   const res = await fetch(`${API}/payment_links`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: authHeader() },
+    headers: { "content-type": "application/json", authorization: await authHeader() },
     body: JSON.stringify({
       amount: opts.amountPaise,
       currency: "INR",
@@ -120,7 +137,7 @@ export async function createRazorpayPaymentLink(opts: {
 export async function cancelRazorpaySubscription(subscriptionId: string): Promise<void> {
   const res = await fetch(`${API}/subscriptions/${subscriptionId}/cancel`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: authHeader() },
+    headers: { "content-type": "application/json", authorization: await authHeader() },
     body: JSON.stringify({ cancel_at_cycle_end: 0 }),
   });
   if (!res.ok && res.status !== 400) {
@@ -130,8 +147,8 @@ export async function cancelRazorpaySubscription(subscriptionId: string): Promis
 }
 
 /** Verify the X-Razorpay-Signature header against the raw webhook body. */
-export function verifyRazorpayWebhook(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+export async function verifyRazorpayWebhook(rawBody: string, signature: string | null): Promise<boolean> {
+  const { webhookSecret: secret } = await getRazorpayCreds();
   if (!secret || !signature) return false;
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   try {

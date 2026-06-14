@@ -161,6 +161,10 @@ model PlatformSettings {
   gstin          String?
   gstPercent     Int      @default(18)
   invoicePrefix  String   @default("INV")
+  // Razorpay credentials (secrets encrypted at rest; env vars are the fallback)
+  razorpayKeyId            String?
+  razorpayKeySecretEnc     String?
+  razorpayWebhookSecretEnc String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

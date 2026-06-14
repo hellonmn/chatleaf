@@ -41,7 +41,7 @@ export async function changePlanAction(
   // ── Downgrade to Free: cancel the subscription, drop to FREE ──────────────
   if (plan === "FREE") {
     const sub = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
-    if (sub?.razorpaySubscriptionId && razorpayConfigured()) {
+    if (sub?.razorpaySubscriptionId && (await razorpayConfigured())) {
       try {
         await cancelRazorpaySubscription(sub.razorpaySubscriptionId);
       } catch (err) {
@@ -59,7 +59,7 @@ export async function changePlanAction(
   }
 
   // ── Paid plan, no Razorpay keys: instant switch (test mode) ───────────────
-  if (!razorpayConfigured()) {
+  if (!(await razorpayConfigured())) {
     await prisma.org.update({ where: { id: ctx.orgId }, data: { plan } });
     revalidatePath("/dashboard/settings/billing");
     return { ok: `(test mode) Switched to the ${plan} plan. Configure Razorpay for real billing.` };

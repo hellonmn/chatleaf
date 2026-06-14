@@ -20,6 +20,9 @@ export type PlatformSettings = {
   gstin: string | null;
   gstPercent: number;
   invoicePrefix: string;
+  razorpayKeyId: string | null;
+  razorpayKeySecretSet: boolean;
+  razorpayWebhookSecretSet: boolean;
 };
 
 export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
@@ -36,6 +39,9 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   gstin: null,
   gstPercent: 18,
   invoicePrefix: "INV",
+  razorpayKeyId: null,
+  razorpayKeySecretSet: false,
+  razorpayWebhookSecretSet: false,
 };
 
 export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => {
@@ -55,5 +61,8 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     gstin: row.gstin,
     gstPercent: row.gstPercent,
     invoicePrefix: row.invoicePrefix,
+    razorpayKeyId: row.razorpayKeyId,
+    razorpayKeySecretSet: !!row.razorpayKeySecretEnc,
+    razorpayWebhookSecretSet: !!row.razorpayWebhookSecretEnc,
   };
 });

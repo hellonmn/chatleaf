@@ -55,6 +55,7 @@ export default async function ConversationPage({
 
   const windowOpen =
     !!convo.windowExpiresAt && convo.windowExpiresAt.getTime() > Date.now();
+  const billingLive = await razorpayConfigured();
   const name = convo.contact.name ?? convo.contact.phone ?? convo.contact.waId;
   const headColor = avatarColor(name + convo.contact.waId);
   const chatMessages: ChatMessage[] = convo.messages.map((m) => ({
@@ -105,7 +106,7 @@ export default async function ConversationPage({
         messages={chatMessages}
         canSendFreeform={windowOpen}
         savedReplies={savedReplies}
-        billingLive={razorpayConfigured()}
+        billingLive={billingLive}
       />
       </div>
 
