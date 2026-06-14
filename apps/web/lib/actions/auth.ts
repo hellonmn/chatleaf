@@ -8,7 +8,7 @@ import { signIn } from "@/auth";
 import { uniqueSlug } from "@/lib/slug";
 import { getPlatformSettings } from "@/lib/platform-settings";
 
-export type ActionState = { error?: string } | undefined;
+export type ActionState = { error?: string; needs2fa?: boolean } | undefined;
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -69,6 +69,7 @@ export async function signupAction(
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
+  code: z.string().optional(),
 });
 
 export async function loginAction(
@@ -78,15 +79,31 @@ export async function loginAction(
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    code: formData.get("code") ?? "",
   });
   if (!parsed.success) {
     return { error: parsed.error.errors[0]?.message ?? "Invalid input" };
   }
+  const email = parsed.data.email.toLowerCase();
+  const code = parsed.data.code?.trim() ?? "";
+
+  // If the password is right and 2FA is on but no code was supplied yet, ask for it.
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (
+    user?.passwordHash &&
+    !user.disabledAt &&
+    user.twoFactorEnabled &&
+    !code &&
+    (await bcrypt.compare(parsed.data.password, user.passwordHash))
+  ) {
+    return { needs2fa: true };
+  }
 
   try {
     await signIn("credentials", {
-      email: parsed.data.email.toLowerCase(),
+      email,
       password: parsed.data.password,
+      code,
       redirectTo: "/dashboard",
     });
   } catch (err) {

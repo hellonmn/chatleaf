@@ -64,6 +64,8 @@ model User {
   passwordHash String?
   isPlatformAdmin Boolean @default(false) // SaaS operator: cross-org access via /admin
   disabledAt   DateTime? // set by a platform admin to block this user from logging in
+  twoFactorSecret  String?  // encrypted TOTP secret (set during 2FA enrollment)
+  twoFactorEnabled Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

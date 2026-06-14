@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck } from "lucide-react";
+import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck, UserCog } from "lucide-react";
 import { signOutAction } from "@/lib/actions/signout";
 
 /** Per-route page title + subtitle, mirroring the Chatleaf Portal mockup's META map. */
@@ -141,6 +141,13 @@ export function Topbar({
               </div>
             </div>
             <div className="py-1">
+              <Link
+                href="/dashboard/settings/account"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-sub hover:bg-canvas"
+              >
+                <UserCog className="h-4 w-4" /> Account &amp; security
+              </Link>
               <Link
                 href="/dashboard/analytics"
                 onClick={() => setOpen(false)}

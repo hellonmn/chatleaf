@@ -37,6 +37,21 @@ export function LoginForm() {
           <label className={label} htmlFor="password">Password</label>
           <input id="password" name="password" type="password" autoComplete="current-password" placeholder="••••••••" className={field} />
         </div>
+        {state?.needs2fa && (
+          <div>
+            <label className={label} htmlFor="code">Authenticator code</label>
+            <input
+              id="code"
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6-digit code"
+              autoFocus
+              className={field}
+            />
+            <p className="mt-1 text-xs text-sub">Enter the code from your authenticator app.</p>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm text-sub">
             <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-line text-brand focus:ring-brand" />

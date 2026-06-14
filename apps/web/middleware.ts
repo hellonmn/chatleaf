@@ -1,6 +1,11 @@
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
+import { authConfig } from "@/auth.config";
 import { isAdminIpAllowed, ipFromHeaders } from "@/lib/ip-allowlist";
+
+// Build an edge-safe NextAuth instance from the lightweight config so the
+// Node-only Credentials provider (bcrypt/prisma/crypto) never reaches the edge.
+const { auth } = NextAuth(authConfig);
 
 /**
  * Protects the dashboard and the platform-admin area. Unauthenticated users
