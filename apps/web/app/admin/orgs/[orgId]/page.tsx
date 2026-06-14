@@ -252,6 +252,7 @@ export default async function AdminOrgDetailPage({
             slug={org.slug}
             seatOverride={org.seatLimitOverride}
             planSeats={limits.seats}
+            gstin={org.gstin}
           />
         </SectionCard>
 

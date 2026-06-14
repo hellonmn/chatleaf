@@ -31,6 +31,11 @@ export default async function BillingPage() {
   const subscription = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
   const billingLive = razorpayConfigured();
   const plans = Object.values(await getPlanConfigs());
+  const invoices = await prisma.invoice.findMany({
+    where: { orgId: ctx.orgId },
+    orderBy: { issuedAt: "desc" },
+    take: 24,
+  });
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -56,6 +61,34 @@ export default async function BillingPage() {
             ? ` · renews ${subscription.currentEnd.toLocaleDateString()}`
             : ""}
           .
+        </section>
+      )}
+
+      {invoices.length > 0 && (
+        <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-900">Invoices</h2>
+          <div className="divide-y divide-slate-100">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between py-2.5 text-sm">
+                <div>
+                  <div className="font-medium text-slate-900">{inv.number}</div>
+                  <div className="text-xs text-slate-400">{inv.issuedAt.toLocaleDateString()}</div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="font-semibold text-slate-900">
+                    ₹{(inv.total / 100).toLocaleString("en-IN")}
+                  </span>
+                  <a
+                    href={`/dashboard/settings/billing/invoices/${inv.id}`}
+                    target="_blank"
+                    className="font-semibold text-brand hover:text-brand-dark"
+                  >
+                    View
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

@@ -34,6 +34,7 @@ model Org {
   suspendedAt DateTime? // set by a platform admin to lock the org out of the app
   adminNotes  String?  // internal platform-admin notes (never shown to the org)
   seatLimitOverride Int? // when set, overrides the plan's seat limit for this org
+  gstin       String?  // buyer GSTIN, shown on tax invoices
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -53,6 +54,7 @@ model Org {
   settings         OrgSettings?
   subscription     Subscription?
   paymentLinks     PaymentLink[]
+  invoices         Invoice[]
 }
 
 model User {
@@ -151,8 +153,39 @@ model PlatformSettings {
   flowsEnabled      Boolean  @default(true)
   templatesEnabled  Boolean  @default(true)
   aiEnabled         Boolean  @default(true)
+  // GST invoicing (seller / SaaS-operator details)
+  companyName    String?
+  companyAddress String?
+  gstin          String?
+  gstPercent     Int      @default(18)
+  invoicePrefix  String   @default("INV")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+/// A GST tax invoice issued to an org for a paid subscription charge. Amounts in
+/// paise. Generated from the Razorpay subscription.charged webhook.
+model Invoice {
+  id          String   @id @default(cuid())
+  orgId       String
+  number      String   @unique
+  razorpayPaymentId String? @unique // dedupe: one invoice per Razorpay charge
+  description String
+  subtotal    Int // taxable value (paise)
+  gstPercent  Int
+  cgst        Int
+  sgst        Int
+  igst        Int
+  total       Int // paise (what the customer paid)
+  buyerName   String
+  buyerGstin  String?
+  sellerName  String
+  sellerGstin String?
+  issuedAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 /// A single global banner the platform operator can show across every org's

@@ -12,12 +12,14 @@ export function EditOrgForm({
   slug,
   seatOverride,
   planSeats,
+  gstin,
 }: {
   orgId: string;
   name: string;
   slug: string;
   seatOverride: number | null;
   planSeats: number;
+  gstin: string | null;
 }) {
   const [state, action] = useActionState<EditOrgState, FormData>(updateOrgAction, undefined);
 
@@ -44,6 +46,11 @@ export function EditOrgForm({
           className={field}
         />
         <p className="mt-1 text-xs text-faint">Leave blank to use the plan&apos;s default seat limit.</p>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-sub">Buyer GSTIN</label>
+        <input name="gstin" defaultValue={gstin ?? ""} placeholder="22AAAAA0000A1Z5" className={field} />
+        <p className="mt-1 text-xs text-faint">Shown on the org&apos;s tax invoices.</p>
       </div>
 
       {state?.error && (

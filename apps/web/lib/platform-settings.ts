@@ -15,6 +15,11 @@ export type PlatformSettings = {
   flowsEnabled: boolean;
   templatesEnabled: boolean;
   aiEnabled: boolean;
+  companyName: string | null;
+  companyAddress: string | null;
+  gstin: string | null;
+  gstPercent: number;
+  invoicePrefix: string;
 };
 
 export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
@@ -26,6 +31,11 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   flowsEnabled: true,
   templatesEnabled: true,
   aiEnabled: true,
+  companyName: null,
+  companyAddress: null,
+  gstin: null,
+  gstPercent: 18,
+  invoicePrefix: "INV",
 };
 
 export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => {
@@ -40,5 +50,10 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     flowsEnabled: row.flowsEnabled,
     templatesEnabled: row.templatesEnabled,
     aiEnabled: row.aiEnabled,
+    companyName: row.companyName,
+    companyAddress: row.companyAddress,
+    gstin: row.gstin,
+    gstPercent: row.gstPercent,
+    invoicePrefix: row.invoicePrefix,
   };
 });

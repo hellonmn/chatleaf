@@ -4,6 +4,7 @@ import { PLANS } from "@watool/types";
 import { publishInboxEvent } from "@watool/queue";
 import { logger, captureError, notify } from "@watool/observability";
 import { verifyRazorpayWebhook, planFromRazorpayId } from "@/lib/razorpay";
+import { createInvoiceForCharge } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ type SubEntity = {
   plan_id?: string;
   status?: string;
   current_end?: number | null;
+  amount?: number;
   notes?: Record<string, string>;
 };
 
@@ -73,6 +75,19 @@ export async function POST(req: Request) {
             }),
           ]);
           logger.info("subscription active", { orgId, plan, event });
+
+          // A real charge → issue a GST invoice (idempotent on payment id).
+          if (event === "subscription.charged") {
+            const payment = body.payload?.payment?.entity;
+            if (payment?.amount) {
+              await createInvoiceForCharge({
+                orgId,
+                totalPaise: payment.amount,
+                description: `${plan} plan subscription`,
+                razorpayPaymentId: payment.id,
+              });
+            }
+          }
         }
         break;
       }

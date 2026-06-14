@@ -43,6 +43,33 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
         </div>
       </section>
 
+      <section className="space-y-3">
+        <h3 className="text-base font-bold text-ink">GST invoicing</h3>
+        <p className="-mt-1 text-sm text-sub">Seller details printed on tax invoices.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Company name</label>
+            <input name="companyName" defaultValue={settings.companyName ?? ""} className={field} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">GSTIN</label>
+            <input name="gstin" defaultValue={settings.gstin ?? ""} placeholder="22AAAAA0000A1Z5" className={field} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-sub">Company address</label>
+            <input name="companyAddress" defaultValue={settings.companyAddress ?? ""} className={field} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">GST %</label>
+            <input name="gstPercent" type="number" min={0} max={100} defaultValue={settings.gstPercent} className={field} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Invoice prefix</label>
+            <input name="invoicePrefix" defaultValue={settings.invoicePrefix} className={field} />
+          </div>
+        </div>
+      </section>
+
       <section className="space-y-2">
         <h3 className="text-base font-bold text-ink">Features</h3>
         <p className="-mt-1 text-sm text-sub">Turn product areas off across every workspace.</p>

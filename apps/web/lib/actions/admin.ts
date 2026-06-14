@@ -82,12 +82,14 @@ export async function updateOrgAction(
       name: z.string().trim().min(1, "Name is required.").max(100),
       slug: z.string().trim().max(40),
       seatOverride: z.string().trim(),
+      gstin: z.string().trim().max(20).optional(),
     })
     .safeParse({
       orgId: formData.get("orgId"),
       name: formData.get("name"),
       slug: formData.get("slug"),
       seatOverride: formData.get("seatOverride") ?? "",
+      gstin: formData.get("gstin") ?? "",
     });
   if (!parsed.success) {
     return { error: parsed.error.errors[0]?.message ?? "Invalid input." };
@@ -115,7 +117,7 @@ export async function updateOrgAction(
 
   await prisma.org.update({
     where: { id: parsed.data.orgId },
-    data: { name: parsed.data.name, slug, seatLimitOverride },
+    data: { name: parsed.data.name, slug, seatLimitOverride, gstin: parsed.data.gstin || null },
   });
   await logAdminAction({
     actor,
@@ -149,6 +151,7 @@ export async function savePlatformSettingsAction(
     return { error: "Enter a valid support email." };
   }
   const on = (name: string) => formData.get(name) === "on";
+  const gstPercentRaw = Number(formData.get("gstPercent"));
   const data = {
     brandName,
     logoUrl,
@@ -158,6 +161,11 @@ export async function savePlatformSettingsAction(
     flowsEnabled: on("flowsEnabled"),
     templatesEnabled: on("templatesEnabled"),
     aiEnabled: on("aiEnabled"),
+    companyName: String(formData.get("companyName") ?? "").trim() || null,
+    companyAddress: String(formData.get("companyAddress") ?? "").trim() || null,
+    gstin: String(formData.get("gstin") ?? "").trim() || null,
+    gstPercent: Number.isFinite(gstPercentRaw) && gstPercentRaw >= 0 && gstPercentRaw <= 100 ? Math.round(gstPercentRaw) : 18,
+    invoicePrefix: String(formData.get("invoicePrefix") ?? "").trim() || "INV",
   };
 
   await prisma.platformSettings.upsert({
