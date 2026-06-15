@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Smartphone, CreditCard, Building2, Wallet } from "lucide-react";
 import { createCheckoutSubscriptionAction, confirmCheckoutAction } from "@/lib/actions/billing";
@@ -9,6 +9,33 @@ import type { RazorpayMethods } from "@/lib/razorpay";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Method = "upi" | "card" | "netbanking" | "wallet";
+
+// createPayment lives in the Custom Checkout SDK (razorpay.js); the card modal
+// (.open()) lives in the standard checkout.js. We load both and capture each
+// constructor separately so the shared window.Razorpay global can't clash.
+const CUSTOM_SDK = "https://checkout.razorpay.com/v1/razorpay.js";
+const STANDARD_SDK = "https://checkout.razorpay.com/v1/checkout.js";
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
+    if (existing) {
+      if ((existing as any)._loaded) return resolve();
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("load failed")));
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.addEventListener("load", () => {
+      (s as any)._loaded = true;
+      resolve();
+    });
+    s.addEventListener("error", () => reject(new Error("load failed")));
+    document.head.appendChild(s);
+  });
+}
 
 // Used only if the live methods fetch fails.
 const FALLBACK_BANKS = [
@@ -80,6 +107,27 @@ export function CustomCheckout({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const subRef = useRef<{ subscriptionId: string; keyId: string } | null>(null);
+  const customCtor = useRef<any>(null); // razorpay.js → createPayment
+  const standardCtor = useRef<any>(null); // checkout.js → .open() (card modal)
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadScript(CUSTOM_SDK);
+        if (cancelled) return;
+        customCtor.current = (window as any).Razorpay;
+        await loadScript(STANDARD_SDK);
+        if (cancelled) return;
+        standardCtor.current = (window as any).Razorpay;
+      } catch {
+        /* pay() surfaces a clear error if a constructor is missing */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const field =
     "w-full rounded-btn border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand";
@@ -127,7 +175,6 @@ export function CustomCheckout({
     if (method === "upi" && !/^[\w.\-]+@[\w.\-]+$/.test(vpa.trim())) {
       return setError("Enter a valid UPI ID (e.g. name@bank).");
     }
-    if (!(window as any).Razorpay) return setError("Payment library is still loading — try again.");
 
     setBusy(true);
     setStatus("Starting…");
@@ -136,7 +183,9 @@ export function CustomCheckout({
 
       // Card → Razorpay's secure modal (PCI handled by Razorpay).
       if (method === "card") {
-        const rzp = new (window as any).Razorpay({
+        const Ctor = standardCtor.current;
+        if (!Ctor) return fail("Payment library is still loading — try again.");
+        const rzp = new Ctor({
           key: keyId,
           subscription_id: subscriptionId,
           name: brandName,
@@ -152,7 +201,12 @@ export function CustomCheckout({
       }
 
       // UPI / netbanking / wallet → custom createPayment on our page.
-      const rzp = new (window as any).Razorpay({ key: keyId });
+      const Ctor = customCtor.current;
+      if (!Ctor) return fail("Payment library is still loading — try again in a moment.");
+      const rzp = new Ctor({ key: keyId });
+      if (typeof rzp.createPayment !== "function") {
+        return fail("Custom checkout SDK unavailable. Please retry.");
+      }
       rzp.on("payment.success", onSuccess);
       rzp.on("payment.error", (e: any) => fail(e?.error?.description ?? "Payment failed."));
       const base = { subscription_id: subscriptionId, email: prefillEmail || "owner@example.com", contact };

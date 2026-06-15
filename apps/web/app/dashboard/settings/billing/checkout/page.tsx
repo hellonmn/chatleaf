@@ -1,4 +1,3 @@
-import Script from "next/script";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -39,7 +38,6 @@ export default async function CheckoutPage({
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <Link href="/dashboard/settings/billing" className="inline-flex items-center gap-1 text-sm text-sub hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> Back to billing
       </Link>
