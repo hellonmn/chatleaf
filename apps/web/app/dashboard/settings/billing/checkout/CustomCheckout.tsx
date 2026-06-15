@@ -4,36 +4,37 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Smartphone, CreditCard, Building2, Wallet } from "lucide-react";
 import { createCheckoutSubscriptionAction, confirmCheckoutAction } from "@/lib/actions/billing";
+import type { RazorpayMethods } from "@/lib/razorpay";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Method = "upi" | "card" | "netbanking" | "wallet";
 
-const BANKS: { code: string; name: string }[] = [
+// Used only if the live methods fetch fails.
+const FALLBACK_BANKS = [
   { code: "HDFC", name: "HDFC Bank" },
   { code: "ICIC", name: "ICICI Bank" },
   { code: "SBIN", name: "State Bank of India" },
   { code: "UTIB", name: "Axis Bank" },
   { code: "KKBK", name: "Kotak Mahindra" },
-  { code: "PUNB_R", name: "Punjab National Bank" },
-  { code: "BARB_R", name: "Bank of Baroda" },
-  { code: "YESB", name: "Yes Bank" },
 ];
-
-const WALLETS: { code: string; name: string }[] = [
+const FALLBACK_WALLETS = [
   { code: "freecharge", name: "Freecharge" },
   { code: "mobikwik", name: "Mobikwik" },
-  { code: "olamoney", name: "Ola Money" },
-  { code: "jiomoney", name: "JioMoney" },
-  { code: "airtelmoney", name: "Airtel Money" },
 ];
 
-const TABS: { id: Method; label: string; icon: typeof Smartphone }[] = [
-  { id: "upi", label: "UPI", icon: Smartphone },
-  { id: "card", label: "Card", icon: CreditCard },
-  { id: "netbanking", label: "Netbanking", icon: Building2 },
-  { id: "wallet", label: "Wallet", icon: Wallet },
-];
+const ICONS: Record<Method, typeof Smartphone> = {
+  upi: Smartphone,
+  card: CreditCard,
+  netbanking: Building2,
+  wallet: Wallet,
+};
+const LABELS: Record<Method, string> = {
+  upi: "UPI",
+  card: "Card",
+  netbanking: "Netbanking",
+  wallet: "Wallet",
+};
 
 export function CustomCheckout({
   plan,
@@ -42,6 +43,7 @@ export function CustomCheckout({
   brandName,
   prefillName,
   prefillEmail,
+  methods,
 }: {
   plan: string;
   code: string;
@@ -49,13 +51,31 @@ export function CustomCheckout({
   brandName: string;
   prefillName: string;
   prefillEmail: string;
+  methods: RazorpayMethods | null;
 }) {
   const router = useRouter();
-  const [method, setMethod] = useState<Method>("upi");
+
+  // Resolve enabled methods + live bank/wallet lists (with fallbacks).
+  const m = methods ?? { card: true, upi: true, netbanking: [], wallets: [] };
+  const banks = m.netbanking.length ? m.netbanking : FALLBACK_BANKS;
+  const wallets = m.wallets.length ? m.wallets : FALLBACK_WALLETS;
+  const enabled: Method[] = [
+    ...(m.upi ? (["upi"] as const) : []),
+    ...(m.card ? (["card"] as const) : []),
+    ...(banks.length ? (["netbanking"] as const) : []),
+    ...(wallets.length ? (["wallet"] as const) : []),
+  ];
+  const tabs = (enabled.length ? enabled : (["card"] as Method[])).map((id) => ({
+    id,
+    label: LABELS[id],
+    icon: ICONS[id],
+  }));
+
+  const [method, setMethod] = useState<Method>(tabs[0]!.id);
   const [contact, setContact] = useState("");
   const [vpa, setVpa] = useState("");
-  const [bank, setBank] = useState(BANKS[0]!.code);
-  const [wallet, setWallet] = useState(WALLETS[0]!.code);
+  const [bank, setBank] = useState(banks[0]!.code);
+  const [wallet, setWallet] = useState(wallets[0]!.code);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,8 +174,8 @@ export function CustomCheckout({
   return (
     <div className="space-y-4">
       {/* Method tabs */}
-      <div className="grid grid-cols-4 gap-2">
-        {TABS.map((t) => {
+      <div className={`grid gap-2 grid-cols-${Math.min(4, tabs.length)}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+        {tabs.map((t) => {
           const Icon = t.icon;
           const active = method === t.id;
           return (
@@ -189,7 +209,7 @@ export function CustomCheckout({
         <div>
           <label className="mb-1 block text-xs font-semibold text-sub">Bank</label>
           <select value={bank} onChange={(e) => setBank(e.target.value)} className={field}>
-            {BANKS.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+            {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
           </select>
         </div>
       )}
@@ -197,7 +217,7 @@ export function CustomCheckout({
         <div>
           <label className="mb-1 block text-xs font-semibold text-sub">Wallet</label>
           <select value={wallet} onChange={(e) => setWallet(e.target.value)} className={field}>
-            {WALLETS.map((w) => <option key={w.code} value={w.code}>{w.name}</option>)}
+            {wallets.map((w) => <option key={w.code} value={w.code}>{w.name}</option>)}
           </select>
         </div>
       )}

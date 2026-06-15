@@ -59,6 +59,54 @@ async function authHeader(): Promise<string> {
   return `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
 }
 
+export type RazorpayMethods = {
+  card: boolean;
+  upi: boolean;
+  netbanking: { code: string; name: string }[];
+  wallets: { code: string; name: string }[];
+};
+
+function prettify(code: string): string {
+  return code.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Live payment methods enabled for the account, via Razorpay's public
+ * `preferences` endpoint (key_id only — no secret). Returns null on any failure
+ * so the UI can fall back to a default set.
+ */
+export const getRazorpayMethods = cache(async (): Promise<RazorpayMethods | null> => {
+  const { keyId } = await getRazorpayCreds();
+  if (!keyId) return null;
+  try {
+    const res = await fetch(`${API}/preferences?key_id=${encodeURIComponent(keyId)}`);
+    if (!res.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = (await res.json())?.methods ?? {};
+
+    const netbanking =
+      m.netbanking && typeof m.netbanking === "object"
+        ? Object.entries(m.netbanking).map(([code, name]) => ({ code, name: String(name) }))
+        : [];
+
+    let wallets: { code: string; name: string }[] = [];
+    if (Array.isArray(m.wallet)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      wallets = m.wallet.map((w: any) =>
+        typeof w === "string" ? { code: w, name: prettify(w) } : { code: w.method ?? w.code, name: w.name ?? prettify(w.method ?? w.code) },
+      );
+    } else if (m.wallet && typeof m.wallet === "object") {
+      wallets = Object.entries(m.wallet)
+        .filter(([, v]) => v)
+        .map(([code, v]) => ({ code, name: typeof v === "string" ? v : prettify(code) }));
+    }
+
+    return { card: !!m.card, upi: !!m.upi, netbanking, wallets };
+  } catch {
+    return null;
+  }
+});
+
 type RazorpaySubscription = {
   id: string;
   status: string;

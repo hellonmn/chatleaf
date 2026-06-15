@@ -6,7 +6,7 @@ import { PLANS } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { getPlanConfig } from "@/lib/plan-config";
 import { getPlatformSettings } from "@/lib/platform-settings";
-import { razorpayConfigured } from "@/lib/razorpay";
+import { razorpayConfigured, getRazorpayMethods } from "@/lib/razorpay";
 import { Card } from "@/components/ui/Card";
 import { CustomCheckout } from "./CustomCheckout";
 
@@ -27,7 +27,11 @@ export default async function CheckoutPage({
   }
   const plan = sp.plan as (typeof PLANS)[number];
   const code = (sp.code ?? "").trim();
-  const [config, settings] = await Promise.all([getPlanConfig(plan), getPlatformSettings()]);
+  const [config, settings, methods] = await Promise.all([
+    getPlanConfig(plan),
+    getPlatformSettings(),
+    getRazorpayMethods(),
+  ]);
 
   const total = config.priceInr;
   const taxable = Math.round(total / (1 + settings.gstPercent / 100));
@@ -66,6 +70,7 @@ export default async function CheckoutPage({
             brandName={settings.brandName}
             prefillName={ctx.name ?? ""}
             prefillEmail={ctx.email}
+            methods={methods}
           />
         </div>
         <p className="mt-3 text-center text-xs text-faint">
