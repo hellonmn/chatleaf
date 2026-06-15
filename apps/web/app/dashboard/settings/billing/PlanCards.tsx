@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { type PlanName } from "@watool/types";
 import type { PlanConfig } from "@/lib/plan-config";
 import { changePlanAction, type ActionState } from "@/lib/actions/billing";
@@ -78,14 +79,23 @@ export function PlanCards({
                   <div className="rounded-md bg-brand/10 py-1.5 text-center text-xs font-medium text-brand-ink">
                     Current plan
                   </div>
-                ) : isOwner ? (
+                ) : !isOwner ? (
+                  <div className="py-1.5 text-center text-xs text-slate-400">Owner only</div>
+                ) : billingLive && p.plan !== "FREE" ? (
+                  // Paid plan with billing live → in-app checkout (no Razorpay redirect).
+                  <Link
+                    href={`/dashboard/settings/billing/checkout?plan=${p.plan}${code ? `&code=${encodeURIComponent(code)}` : ""}`}
+                    className="block w-full rounded-btn bg-brand px-3 py-2 text-center text-sm font-semibold text-white hover:bg-brand-dark"
+                  >
+                    {cta}
+                  </Link>
+                ) : (
+                  // Free downgrade, or test-mode instant switch.
                   <form action={action}>
                     <input type="hidden" name="plan" value={p.plan} />
                     <input type="hidden" name="code" value={code} />
                     <SubmitButton className="w-full">{cta}</SubmitButton>
                   </form>
-                ) : (
-                  <div className="py-1.5 text-center text-xs text-slate-400">Owner only</div>
                 )}
               </div>
             </div>

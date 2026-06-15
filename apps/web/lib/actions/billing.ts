@@ -10,10 +10,79 @@ import {
   razorpayConfigured,
   createRazorpaySubscription,
   cancelRazorpaySubscription,
+  getRazorpayCreds,
 } from "@/lib/razorpay";
 import { getPlanConfig } from "@/lib/plan-config";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
+
+export type CheckoutState =
+  | { error?: string; subscriptionId?: string; keyId?: string }
+  | undefined;
+
+/**
+ * Create a Razorpay subscription for an in-app (embedded) checkout — returns the
+ * subscription id + public key for the Razorpay Checkout modal, WITHOUT
+ * redirecting to Razorpay's hosted page. The webhook activates the plan on
+ * payment. Owner-only; paid plans only.
+ */
+export async function createCheckoutSubscriptionAction(
+  planRaw: string,
+  codeRaw: string,
+): Promise<CheckoutState> {
+  const ctx = await requireActiveContext();
+  if (ctx.role !== "OWNER") return { error: "Only the workspace owner can change the plan." };
+
+  const parsed = z.enum(PLANS).safeParse(planRaw);
+  if (!parsed.success || parsed.data === "FREE") return { error: "Invalid plan." };
+  const plan = parsed.data;
+  if (!(await razorpayConfigured())) return { error: "Billing isn't configured." };
+
+  const config = await getPlanConfig(plan);
+  if (!config.razorpayPlanId) {
+    return { error: `The ${plan} plan isn't wired to a Razorpay plan id yet.` };
+  }
+
+  const code = String(codeRaw ?? "").trim().toUpperCase();
+  let coupon: { id: string; razorpayOfferId: string | null } | null = null;
+  if (code) {
+    const c = await prisma.coupon.findUnique({ where: { code } });
+    if (!c || !c.active) return { error: "That promo code isn't valid." };
+    if (c.expiresAt && c.expiresAt.getTime() < Date.now()) return { error: "That promo code has expired." };
+    if (c.maxRedemptions != null && c.redeemedCount >= c.maxRedemptions) {
+      return { error: "That promo code has reached its redemption limit." };
+    }
+    coupon = { id: c.id, razorpayOfferId: c.razorpayOfferId };
+  }
+
+  const startAt =
+    config.trialDays > 0 ? Math.floor(Date.now() / 1000) + config.trialDays * 86_400 : null;
+
+  try {
+    const sub = await createRazorpaySubscription({
+      planId: config.razorpayPlanId,
+      orgId: ctx.orgId,
+      offerId: coupon?.razorpayOfferId ?? null,
+      startAt,
+      notes: { plan },
+    });
+    await prisma.subscription.upsert({
+      where: { orgId: ctx.orgId },
+      create: { orgId: ctx.orgId, razorpaySubscriptionId: sub.id, plan, status: sub.status || "created" },
+      update: { razorpaySubscriptionId: sub.id, plan, status: sub.status || "created" },
+    });
+    if (coupon) {
+      await prisma.coupon.update({
+        where: { id: coupon.id },
+        data: { redeemedCount: { increment: 1 } },
+      });
+    }
+    const { keyId } = await getRazorpayCreds();
+    return { subscriptionId: sub.id, keyId: keyId ?? undefined };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not start checkout." };
+  }
+}
 
 const schema = z.object({ plan: z.enum(PLANS) });
 

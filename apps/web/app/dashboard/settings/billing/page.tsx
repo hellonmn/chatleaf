@@ -25,8 +25,13 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
   );
 }
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
   const ctx = await requireActiveContext();
+  const { checkout } = await searchParams;
   const usage = await getUsage(ctx.orgId, ctx.plan);
   const subscription = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
   const billingLive = await razorpayConfigured();
@@ -53,6 +58,12 @@ export default async function BillingPage() {
         <Meter label="Messages sent (this month)" used={usage.messagesThisMonth} limit={usage.limits.messagesPerMonth} />
         <Meter label="Published flows" used={usage.publishedFlows} limit={usage.limits.publishedFlows} />
       </section>
+
+      {checkout === "success" && subscription?.status !== "active" && (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Payment received — activating your plan. This page will reflect it in a moment.
+        </section>
+      )}
 
       {subscription?.status === "active" && (
         <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
