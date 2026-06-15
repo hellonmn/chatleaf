@@ -8,7 +8,7 @@ import { getPlanConfig } from "@/lib/plan-config";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { Card } from "@/components/ui/Card";
-import { CheckoutButton } from "./CheckoutButton";
+import { CustomCheckout } from "./CustomCheckout";
 
 function inr(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
@@ -59,7 +59,7 @@ export default async function CheckoutPage({
         </div>
 
         <div className="mt-4">
-          <CheckoutButton
+          <CustomCheckout
             plan={plan}
             code={code}
             planLabel={config.label}
@@ -69,7 +69,7 @@ export default async function CheckoutPage({
           />
         </div>
         <p className="mt-3 text-center text-xs text-faint">
-          Secured by Razorpay. Your plan activates as soon as payment is confirmed.
+          Payments processed securely by Razorpay. Your plan activates as soon as payment is confirmed.
         </p>
       </Card>
     </div>
