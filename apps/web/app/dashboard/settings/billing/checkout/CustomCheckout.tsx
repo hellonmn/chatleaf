@@ -1,43 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Smartphone, CreditCard, Building2, Wallet } from "lucide-react";
+import { Loader2, Smartphone, CreditCard, Building2 } from "lucide-react";
 import { createCheckoutSubscriptionAction, confirmCheckoutAction } from "@/lib/actions/billing";
 import type { RazorpayMethods } from "@/lib/razorpay";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Method = "upi" | "card" | "netbanking" | "wallet";
+// Subscriptions need mandate registration (UPI Autopay / eMandate / card
+// mandate), which Razorpay's Checkout handles — so we open it (a secure overlay
+// on this page, not a redirect) preselected to the chosen method.
+type Method = "upi" | "card" | "netbanking";
 
-// createPayment lives in the Custom Checkout SDK (razorpay.js); the card modal
-// (.open()) lives in the standard checkout.js. We load both and capture each
-// constructor separately so the shared window.Razorpay global can't clash.
-const CUSTOM_SDK = "https://checkout.razorpay.com/v1/razorpay.js";
-const STANDARD_SDK = "https://checkout.razorpay.com/v1/checkout.js";
-
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement | null;
-    if (existing) {
-      if ((existing as any)._loaded) return resolve();
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("load failed")));
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.addEventListener("load", () => {
-      (s as any)._loaded = true;
-      resolve();
-    });
-    s.addEventListener("error", () => reject(new Error("load failed")));
-    document.head.appendChild(s);
-  });
-}
-
-// Used only if the live methods fetch fails.
 const FALLBACK_BANKS = [
   { code: "HDFC", name: "HDFC Bank" },
   { code: "ICIC", name: "ICICI Bank" },
@@ -45,23 +20,9 @@ const FALLBACK_BANKS = [
   { code: "UTIB", name: "Axis Bank" },
   { code: "KKBK", name: "Kotak Mahindra" },
 ];
-const FALLBACK_WALLETS = [
-  { code: "freecharge", name: "Freecharge" },
-  { code: "mobikwik", name: "Mobikwik" },
-];
 
-const ICONS: Record<Method, typeof Smartphone> = {
-  upi: Smartphone,
-  card: CreditCard,
-  netbanking: Building2,
-  wallet: Wallet,
-};
-const LABELS: Record<Method, string> = {
-  upi: "UPI",
-  card: "Card",
-  netbanking: "Netbanking",
-  wallet: "Wallet",
-};
+const ICONS: Record<Method, typeof Smartphone> = { upi: Smartphone, card: CreditCard, netbanking: Building2 };
+const LABELS: Record<Method, string> = { upi: "UPI", card: "Card", netbanking: "Netbanking" };
 
 export function CustomCheckout({
   plan,
@@ -82,15 +43,12 @@ export function CustomCheckout({
 }) {
   const router = useRouter();
 
-  // Resolve enabled methods + live bank/wallet lists (with fallbacks).
   const m = methods ?? { card: true, upi: true, netbanking: [], wallets: [] };
   const banks = m.netbanking.length ? m.netbanking : FALLBACK_BANKS;
-  const wallets = m.wallets.length ? m.wallets : FALLBACK_WALLETS;
   const enabled: Method[] = [
     ...(m.upi ? (["upi"] as const) : []),
     ...(m.card ? (["card"] as const) : []),
     ...(banks.length ? (["netbanking"] as const) : []),
-    ...(wallets.length ? (["wallet"] as const) : []),
   ];
   const tabs = (enabled.length ? enabled : (["card"] as Method[])).map((id) => ({
     id,
@@ -100,51 +58,14 @@ export function CustomCheckout({
 
   const [method, setMethod] = useState<Method>(tabs[0]!.id);
   const [contact, setContact] = useState("");
-  const [vpa, setVpa] = useState("");
   const [bank, setBank] = useState(banks[0]!.code);
-  const [wallet, setWallet] = useState(wallets[0]!.code);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const subRef = useRef<{ subscriptionId: string; keyId: string } | null>(null);
-  const customCtor = useRef<any>(null); // razorpay.js → createPayment
-  const standardCtor = useRef<any>(null); // checkout.js → .open() (card modal)
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await loadScript(CUSTOM_SDK);
-        if (cancelled) return;
-        customCtor.current = (window as any).Razorpay;
-        await loadScript(STANDARD_SDK);
-        if (cancelled) return;
-        standardCtor.current = (window as any).Razorpay;
-      } catch {
-        /* pay() surfaces a clear error if a constructor is missing */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const field =
     "w-full rounded-btn border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand";
 
-  /** Create the subscription once and reuse it across retries. */
-  async function ensureSubscription() {
-    if (subRef.current) return subRef.current;
-    const res = await createCheckoutSubscriptionAction(plan, code);
-    if (!res || res.error || !res.subscriptionId || !res.keyId) {
-      throw new Error(res?.error ?? "Could not start checkout.");
-    }
-    subRef.current = { subscriptionId: res.subscriptionId, keyId: res.keyId };
-    return subRef.current;
-  }
-
   async function onSuccess(resp: any) {
-    setStatus("Confirming…");
     const r = await confirmCheckoutAction({
       paymentId: resp.razorpay_payment_id,
       subscriptionId: resp.razorpay_subscription_id,
@@ -153,7 +74,6 @@ export function CustomCheckout({
     if (r?.error) {
       setError(r.error);
       setBusy(false);
-      setStatus(null);
       return;
     }
     router.push(
@@ -163,72 +83,49 @@ export function CustomCheckout({
     );
   }
 
-  function fail(msg: string) {
-    setError(msg);
-    setBusy(false);
-    setStatus(null);
-  }
-
   async function pay() {
     setError(null);
     if (!/^\d{10}$/.test(contact.trim())) return setError("Enter a valid 10-digit mobile number.");
-    if (method === "upi" && !/^[\w.\-]+@[\w.\-]+$/.test(vpa.trim())) {
-      return setError("Enter a valid UPI ID (e.g. name@bank).");
-    }
+    if (!(window as any).Razorpay) return setError("Payment library is still loading — try again.");
 
     setBusy(true);
-    setStatus("Starting…");
     try {
-      const { subscriptionId, keyId } = await ensureSubscription();
-
-      // Card → Razorpay's secure modal (PCI handled by Razorpay).
-      if (method === "card") {
-        const Ctor = standardCtor.current;
-        if (!Ctor) return fail("Payment library is still loading — try again.");
-        const rzp = new Ctor({
-          key: keyId,
-          subscription_id: subscriptionId,
-          name: brandName,
-          description: `${planLabel} plan`,
-          prefill: { name: prefillName, email: prefillEmail, contact, method: "card" },
-          theme: { color: "#0e7490" },
-          handler: onSuccess,
-          modal: { ondismiss: () => { setBusy(false); setStatus(null); } },
-        });
-        rzp.on("payment.failed", (e: any) => fail(e?.error?.description ?? "Payment failed."));
-        rzp.open();
+      const res = await createCheckoutSubscriptionAction(plan, code);
+      if (!res || res.error || !res.subscriptionId || !res.keyId) {
+        setError(res?.error ?? "Could not start checkout.");
+        setBusy(false);
         return;
       }
-
-      // UPI / netbanking / wallet → custom createPayment on our page.
-      const Ctor = customCtor.current;
-      if (!Ctor) return fail("Payment library is still loading — try again in a moment.");
-      const rzp = new Ctor({ key: keyId });
-      if (typeof rzp.createPayment !== "function") {
-        return fail("Custom checkout SDK unavailable. Please retry.");
-      }
-      rzp.on("payment.success", onSuccess);
-      rzp.on("payment.error", (e: any) => fail(e?.error?.description ?? "Payment failed."));
-      const base = { subscription_id: subscriptionId, email: prefillEmail || "owner@example.com", contact };
-      if (method === "upi") {
-        rzp.createPayment({ ...base, method: "upi", vpa: vpa.trim() });
-        setStatus("Approve the payment request in your UPI app…");
-      } else if (method === "netbanking") {
-        rzp.createPayment({ ...base, method: "netbanking", bank });
-        setStatus("Continue on your bank's page…");
-      } else {
-        rzp.createPayment({ ...base, method: "wallet", wallet });
-        setStatus("Continue on the wallet page…");
-      }
+      const rzp = new (window as any).Razorpay({
+        key: res.keyId,
+        subscription_id: res.subscriptionId,
+        name: brandName,
+        description: `${planLabel} plan subscription`,
+        prefill: {
+          name: prefillName,
+          email: prefillEmail,
+          contact,
+          method,
+          ...(method === "netbanking" ? { bank } : {}),
+        },
+        theme: { color: "#0e7490" },
+        handler: onSuccess,
+        modal: { ondismiss: () => setBusy(false) },
+      });
+      rzp.on("payment.failed", (e: any) => {
+        setError(e?.error?.description ?? "Payment failed — please try again.");
+        setBusy(false);
+      });
+      rzp.open();
     } catch (e) {
-      fail(e instanceof Error ? e.message : "Could not start checkout.");
+      setError(e instanceof Error ? e.message : "Could not start checkout.");
+      setBusy(false);
     }
   }
 
   return (
     <div className="space-y-4">
-      {/* Method tabs */}
-      <div className={`grid gap-2 grid-cols-${Math.min(4, tabs.length)}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = method === t.id;
@@ -253,12 +150,6 @@ export function CustomCheckout({
         <input value={contact} onChange={(e) => setContact(e.target.value)} inputMode="numeric" maxLength={10} placeholder="10-digit mobile" className={field} />
       </div>
 
-      {method === "upi" && (
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sub">UPI ID</label>
-          <input value={vpa} onChange={(e) => setVpa(e.target.value)} placeholder="name@bank" className={field} />
-        </div>
-      )}
       {method === "netbanking" && (
         <div>
           <label className="mb-1 block text-xs font-semibold text-sub">Bank</label>
@@ -266,19 +157,6 @@ export function CustomCheckout({
             {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
           </select>
         </div>
-      )}
-      {method === "wallet" && (
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sub">Wallet</label>
-          <select value={wallet} onChange={(e) => setWallet(e.target.value)} className={field}>
-            {wallets.map((w) => <option key={w.code} value={w.code}>{w.name}</option>)}
-          </select>
-        </div>
-      )}
-      {method === "card" && (
-        <p className="rounded-md bg-canvas px-3 py-2 text-xs text-sub">
-          Card details are entered in Razorpay&apos;s secure window for your safety (PCI-compliant).
-        </p>
       )}
 
       <button
@@ -289,7 +167,6 @@ export function CustomCheckout({
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Pay now
       </button>
 
-      {status && <p className="text-center text-sm text-sub">{status}</p>}
       {error && <p className="rounded-md bg-rose/10 px-3 py-2 text-sm text-rose">{error}</p>}
     </div>
   );
