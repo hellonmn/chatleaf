@@ -2,27 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Smartphone, CreditCard, Building2 } from "lucide-react";
+import { Loader2, Smartphone, CreditCard } from "lucide-react";
 import { createCheckoutSubscriptionAction, confirmCheckoutAction } from "@/lib/actions/billing";
 import type { RazorpayMethods } from "@/lib/razorpay";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// Subscriptions need mandate registration (UPI Autopay / eMandate / card
-// mandate), which Razorpay's Checkout handles — so we open it (a secure overlay
-// on this page, not a redirect) preselected to the chosen method.
-type Method = "upi" | "card" | "netbanking";
+// Razorpay subscriptions register a recurring mandate, which only UPI (Autopay)
+// and Cards support — netbanking eMandate is bank-limited and wallets can't do
+// recurring — so those are intentionally not offered here. The payment itself
+// happens in Razorpay's Checkout (a secure overlay on this page, not a redirect).
+type Method = "upi" | "card";
 
-const FALLBACK_BANKS = [
-  { code: "HDFC", name: "HDFC Bank" },
-  { code: "ICIC", name: "ICICI Bank" },
-  { code: "SBIN", name: "State Bank of India" },
-  { code: "UTIB", name: "Axis Bank" },
-  { code: "KKBK", name: "Kotak Mahindra" },
-];
-
-const ICONS: Record<Method, typeof Smartphone> = { upi: Smartphone, card: CreditCard, netbanking: Building2 };
-const LABELS: Record<Method, string> = { upi: "UPI", card: "Card", netbanking: "Netbanking" };
+const ICONS: Record<Method, typeof Smartphone> = { upi: Smartphone, card: CreditCard };
+const LABELS: Record<Method, string> = { upi: "UPI Autopay", card: "Card" };
 
 export function CustomCheckout({
   plan,
@@ -44,13 +37,11 @@ export function CustomCheckout({
   const router = useRouter();
 
   const m = methods ?? { card: true, upi: true, netbanking: [], wallets: [] };
-  const banks = m.netbanking.length ? m.netbanking : FALLBACK_BANKS;
   const enabled: Method[] = [
     ...(m.upi ? (["upi"] as const) : []),
     ...(m.card ? (["card"] as const) : []),
-    ...(banks.length ? (["netbanking"] as const) : []),
   ];
-  const tabs = (enabled.length ? enabled : (["card"] as Method[])).map((id) => ({
+  const tabs = (enabled.length ? enabled : (["card", "upi"] as Method[])).map((id) => ({
     id,
     label: LABELS[id],
     icon: ICONS[id],
@@ -58,7 +49,6 @@ export function CustomCheckout({
 
   const [method, setMethod] = useState<Method>(tabs[0]!.id);
   const [contact, setContact] = useState("");
-  const [bank, setBank] = useState(banks[0]!.code);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,13 +91,7 @@ export function CustomCheckout({
         subscription_id: res.subscriptionId,
         name: brandName,
         description: `${planLabel} plan subscription`,
-        prefill: {
-          name: prefillName,
-          email: prefillEmail,
-          contact,
-          method,
-          ...(method === "netbanking" ? { bank } : {}),
-        },
+        prefill: { name: prefillName, email: prefillEmail, contact, method },
         theme: { color: "#0e7490" },
         handler: onSuccess,
         modal: { ondismiss: () => setBusy(false) },
@@ -150,15 +134,6 @@ export function CustomCheckout({
         <input value={contact} onChange={(e) => setContact(e.target.value)} inputMode="numeric" maxLength={10} placeholder="10-digit mobile" className={field} />
       </div>
 
-      {method === "netbanking" && (
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sub">Bank</label>
-          <select value={bank} onChange={(e) => setBank(e.target.value)} className={field}>
-            {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-          </select>
-        </div>
-      )}
-
       <button
         onClick={pay}
         disabled={busy}
@@ -167,6 +142,9 @@ export function CustomCheckout({
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Pay now
       </button>
 
+      <p className="text-center text-xs text-faint">
+        Subscriptions are charged automatically each month via UPI Autopay or a card mandate.
+      </p>
       {error && <p className="rounded-md bg-rose/10 px-3 py-2 text-sm text-rose">{error}</p>}
     </div>
   );
