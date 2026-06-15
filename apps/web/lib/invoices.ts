@@ -11,13 +11,13 @@ export async function createInvoiceForCharge(opts: {
   totalPaise: number;
   description: string;
   razorpayPaymentId?: string | null;
-}): Promise<void> {
+}): Promise<string | null> {
   if (opts.razorpayPaymentId) {
     const existing = await prisma.invoice.findUnique({
       where: { razorpayPaymentId: opts.razorpayPaymentId },
       select: { id: true },
     });
-    if (existing) return;
+    if (existing) return existing.id;
   }
 
   const [settings, org, count] = await Promise.all([
@@ -25,7 +25,7 @@ export async function createInvoiceForCharge(opts: {
     prisma.org.findUnique({ where: { id: opts.orgId }, select: { name: true, gstin: true } }),
     prisma.invoice.count(),
   ]);
-  if (!org) return;
+  if (!org) return null;
 
   const gstPercent = settings?.gstPercent ?? 18;
   const total = opts.totalPaise;
@@ -43,7 +43,7 @@ export async function createInvoiceForCharge(opts: {
   const year = new Date().getFullYear();
   const number = `${prefix}-${year}-${String(count + 1).padStart(4, "0")}`;
 
-  await prisma.invoice.create({
+  const created = await prisma.invoice.create({
     data: {
       orgId: opts.orgId,
       number,
@@ -60,5 +60,7 @@ export async function createInvoiceForCharge(opts: {
       sellerName: settings?.companyName || settings?.brandName || "Chatleaf",
       sellerGstin: settings?.gstin ?? null,
     },
+    select: { id: true },
   });
+  return created.id;
 }

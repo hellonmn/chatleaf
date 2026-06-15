@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck } from "lucide-react";
-import { createCheckoutSubscriptionAction } from "@/lib/actions/billing";
+import { createCheckoutSubscriptionAction, confirmCheckoutAction } from "@/lib/actions/billing";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare global {
@@ -53,7 +53,24 @@ export function CheckoutButton({
       description: `${planLabel} plan subscription`,
       prefill: { name: prefillName, email: prefillEmail },
       theme: { color: "#0e7490" },
-      handler: () => router.push("/dashboard/settings/billing?checkout=success"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler: async (response: any) => {
+        const res = await confirmCheckoutAction({
+          paymentId: response.razorpay_payment_id,
+          subscriptionId: response.razorpay_subscription_id,
+          signature: response.razorpay_signature,
+        });
+        if (res?.error) {
+          setError(res.error);
+          setLoading(false);
+          return;
+        }
+        router.push(
+          res?.invoiceId
+            ? `/dashboard/settings/billing?checkout=success&invoice=${res.invoiceId}`
+            : "/dashboard/settings/billing?checkout=success",
+        );
+      },
       modal: { ondismiss: () => setLoading(false) },
     });
     rzp.on("payment.failed", () => {

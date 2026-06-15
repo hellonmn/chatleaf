@@ -11,8 +11,10 @@ import {
   createRazorpaySubscription,
   cancelRazorpaySubscription,
   getRazorpayCreds,
+  verifySubscriptionPayment,
 } from "@/lib/razorpay";
 import { getPlanConfig } from "@/lib/plan-config";
+import { createInvoiceForCharge } from "@/lib/invoices";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -82,6 +84,49 @@ export async function createCheckoutSubscriptionAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not start checkout." };
   }
+}
+
+export type ConfirmState = { error?: string; invoiceId?: string } | undefined;
+
+/**
+ * Confirm an in-app checkout from the Razorpay success callback: verify the
+ * signature, activate the plan immediately (so the UI updates without waiting on
+ * the webhook), and issue the GST invoice. Idempotent.
+ */
+export async function confirmCheckoutAction(opts: {
+  paymentId: string;
+  subscriptionId: string;
+  signature: string;
+}): Promise<ConfirmState> {
+  const ctx = await requireActiveContext();
+
+  const sub = await prisma.subscription.findUnique({ where: { orgId: ctx.orgId } });
+  if (!sub || sub.razorpaySubscriptionId !== opts.subscriptionId) {
+    return { error: "Subscription not found for this workspace." };
+  }
+
+  const ok = await verifySubscriptionPayment({
+    paymentId: opts.paymentId,
+    subscriptionId: opts.subscriptionId,
+    signature: opts.signature,
+  });
+  if (!ok) return { error: "Payment could not be verified." };
+
+  await prisma.$transaction([
+    prisma.org.update({ where: { id: ctx.orgId }, data: { plan: sub.plan } }),
+    prisma.subscription.update({ where: { orgId: ctx.orgId }, data: { status: "active" } }),
+  ]);
+
+  const config = await getPlanConfig(sub.plan);
+  const invoiceId = await createInvoiceForCharge({
+    orgId: ctx.orgId,
+    totalPaise: config.priceInr * 100,
+    description: `${sub.plan} plan subscription`,
+    razorpayPaymentId: opts.paymentId,
+  });
+
+  revalidatePath("/dashboard/settings/billing");
+  return { invoiceId: invoiceId ?? undefined };
 }
 
 const schema = z.object({ plan: z.enum(PLANS) });

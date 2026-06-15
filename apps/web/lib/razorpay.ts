@@ -147,6 +147,30 @@ export async function cancelRazorpaySubscription(subscriptionId: string): Promis
   }
 }
 
+/**
+ * Verify a subscription Checkout success callback. Razorpay signs
+ * `payment_id + "|" + subscription_id` with the key secret. Lets us activate the
+ * plan immediately (rather than waiting on the webhook).
+ */
+export async function verifySubscriptionPayment(opts: {
+  paymentId: string;
+  subscriptionId: string;
+  signature: string;
+}): Promise<boolean> {
+  const { keySecret } = await getRazorpayCreds();
+  if (!keySecret) return false;
+  const expected = createHmac("sha256", keySecret)
+    .update(`${opts.paymentId}|${opts.subscriptionId}`)
+    .digest("hex");
+  try {
+    const a = Buffer.from(expected);
+    const b = Buffer.from(opts.signature);
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 /** Verify the X-Razorpay-Signature header against the raw webhook body. */
 export async function verifyRazorpayWebhook(rawBody: string, signature: string | null): Promise<boolean> {
   const { webhookSecret: secret } = await getRazorpayCreds();
