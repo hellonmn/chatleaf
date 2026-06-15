@@ -16,19 +16,20 @@ import type { PlanName } from "@watool/types";
 
 const API = "https://api.razorpay.com/v1";
 
-/** Resolved Razorpay credentials: admin-set (DB, encrypted) over env fallback. */
+/** Resolved Razorpay credentials for the active mode (test/live): admin-set
+ *  (DB, encrypted) over env fallback. */
 export const getRazorpayCreds = cache(async () => {
-  const s = await prisma.platformSettings.findUnique({
-    where: { id: "global" },
-    select: { razorpayKeyId: true, razorpayKeySecretEnc: true, razorpayWebhookSecretEnc: true },
-  });
+  const s = await prisma.platformSettings.findUnique({ where: { id: "global" } });
+  const live = s?.razorpayMode === "live";
+  const keyId = live ? s?.razorpayLiveKeyId : s?.razorpayTestKeyId;
+  const keySecretEnc = live ? s?.razorpayLiveKeySecretEnc : s?.razorpayTestKeySecretEnc;
+  const webhookSecretEnc = live ? s?.razorpayLiveWebhookSecretEnc : s?.razorpayTestWebhookSecretEnc;
   return {
-    keyId: s?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || null,
-    keySecret: s?.razorpayKeySecretEnc
-      ? decryptSecret(s.razorpayKeySecretEnc)
-      : process.env.RAZORPAY_KEY_SECRET || null,
-    webhookSecret: s?.razorpayWebhookSecretEnc
-      ? decryptSecret(s.razorpayWebhookSecretEnc)
+    mode: live ? "live" : "test",
+    keyId: keyId || process.env.RAZORPAY_KEY_ID || null,
+    keySecret: keySecretEnc ? decryptSecret(keySecretEnc) : process.env.RAZORPAY_KEY_SECRET || null,
+    webhookSecret: webhookSecretEnc
+      ? decryptSecret(webhookSecretEnc)
       : process.env.RAZORPAY_WEBHOOK_SECRET || null,
   };
 });

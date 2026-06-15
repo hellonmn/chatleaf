@@ -143,25 +143,23 @@ export async function savePlatformSettingsAction(
 ): Promise<PlatformSettingsState> {
   const actor = await requirePlatformAdmin();
   const brandName = String(formData.get("brandName") ?? "").trim() || "Chatleaf";
-  const logoUrl = String(formData.get("logoUrl") ?? "").trim() || null;
   const supportEmail = String(formData.get("supportEmail") ?? "").trim() || null;
-  if (logoUrl && !/^https?:\/\//.test(logoUrl)) {
-    return { error: "Logo URL must start with http(s)://." };
-  }
   if (supportEmail && !z.string().email().safeParse(supportEmail).success) {
     return { error: "Enter a valid support email." };
   }
   const on = (name: string) => formData.get(name) === "on";
   const gstPercentRaw = Number(formData.get("gstPercent"));
 
-  // Razorpay secrets: blank input keeps the existing value (they're never shown).
+  // Secrets: a blank input keeps the existing value (they're never shown back).
   const existing = await prisma.platformSettings.findUnique({ where: { id: PLATFORM_SETTINGS_ID } });
-  const keySecretInput = String(formData.get("razorpayKeySecret") ?? "").trim();
-  const webhookSecretInput = String(formData.get("razorpayWebhookSecret") ?? "").trim();
+  const keepSecret = (field: string, current: string | null | undefined) => {
+    const v = String(formData.get(field) ?? "").trim();
+    return v ? encryptSecret(v) : current ?? null;
+  };
+  const mode = formData.get("razorpayMode") === "live" ? "live" : "test";
 
   const data = {
     brandName,
-    logoUrl,
     supportEmail,
     signupsEnabled: on("signupsEnabled"),
     broadcastsEnabled: on("broadcastsEnabled"),
@@ -173,9 +171,13 @@ export async function savePlatformSettingsAction(
     gstin: String(formData.get("gstin") ?? "").trim() || null,
     gstPercent: Number.isFinite(gstPercentRaw) && gstPercentRaw >= 0 && gstPercentRaw <= 100 ? Math.round(gstPercentRaw) : 18,
     invoicePrefix: String(formData.get("invoicePrefix") ?? "").trim() || "INV",
-    razorpayKeyId: String(formData.get("razorpayKeyId") ?? "").trim() || null,
-    razorpayKeySecretEnc: keySecretInput ? encryptSecret(keySecretInput) : existing?.razorpayKeySecretEnc ?? null,
-    razorpayWebhookSecretEnc: webhookSecretInput ? encryptSecret(webhookSecretInput) : existing?.razorpayWebhookSecretEnc ?? null,
+    razorpayMode: mode,
+    razorpayTestKeyId: String(formData.get("razorpayTestKeyId") ?? "").trim() || null,
+    razorpayTestKeySecretEnc: keepSecret("razorpayTestKeySecret", existing?.razorpayTestKeySecretEnc),
+    razorpayTestWebhookSecretEnc: keepSecret("razorpayTestWebhookSecret", existing?.razorpayTestWebhookSecretEnc),
+    razorpayLiveKeyId: String(formData.get("razorpayLiveKeyId") ?? "").trim() || null,
+    razorpayLiveKeySecretEnc: keepSecret("razorpayLiveKeySecret", existing?.razorpayLiveKeySecretEnc),
+    razorpayLiveWebhookSecretEnc: keepSecret("razorpayLiveWebhookSecret", existing?.razorpayLiveWebhookSecretEnc),
   };
 
   await prisma.platformSettings.upsert({
@@ -188,11 +190,45 @@ export async function savePlatformSettingsAction(
     action: "platform.settings",
     targetType: "user",
     targetId: actor.userId,
-    metadata: { ...data },
+    metadata: { brandName, razorpayMode: mode },
   });
   revalidatePath("/admin/settings");
   revalidatePath("/dashboard");
   return { ok: "Settings saved." };
+}
+
+export type LogoState = { error?: string; ok?: string } | undefined;
+const MAX_LOGO_BYTES = 256 * 1024;
+
+/** Upload a brand logo (stored as a data URL on PlatformSettings). */
+export async function uploadLogoAction(
+  _prev: LogoState,
+  formData: FormData,
+): Promise<LogoState> {
+  await requirePlatformAdmin();
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Pick an image file." };
+  if (!file.type.startsWith("image/")) return { error: "That file isn't an image." };
+  if (file.size > MAX_LOGO_BYTES) return { error: "Logo must be under 256 KB." };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  const dataUrl = `data:${file.type};base64,${buf.toString("base64")}`;
+  await prisma.platformSettings.upsert({
+    where: { id: PLATFORM_SETTINGS_ID },
+    create: { id: PLATFORM_SETTINGS_ID, logoUrl: dataUrl },
+    update: { logoUrl: dataUrl },
+  });
+  revalidatePath("/admin/settings");
+  revalidatePath("/dashboard");
+  return { ok: "Logo updated." };
+}
+
+/** Remove the brand logo (revert to the wordmark / brand name). */
+export async function removeLogoAction(): Promise<void> {
+  await requirePlatformAdmin();
+  await prisma.platformSettings.updateMany({ data: { logoUrl: null } });
+  revalidatePath("/admin/settings");
+  revalidatePath("/dashboard");
 }
 
 export type PlanConfigState = { error?: string; ok?: string } | undefined;

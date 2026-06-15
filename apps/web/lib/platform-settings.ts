@@ -20,9 +20,13 @@ export type PlatformSettings = {
   gstin: string | null;
   gstPercent: number;
   invoicePrefix: string;
-  razorpayKeyId: string | null;
-  razorpayKeySecretSet: boolean;
-  razorpayWebhookSecretSet: boolean;
+  razorpayMode: string;
+  razorpayTestKeyId: string | null;
+  razorpayTestKeySecretSet: boolean;
+  razorpayTestWebhookSecretSet: boolean;
+  razorpayLiveKeyId: string | null;
+  razorpayLiveKeySecretSet: boolean;
+  razorpayLiveWebhookSecretSet: boolean;
 };
 
 export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
@@ -39,9 +43,13 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   gstin: null,
   gstPercent: 18,
   invoicePrefix: "INV",
-  razorpayKeyId: null,
-  razorpayKeySecretSet: false,
-  razorpayWebhookSecretSet: false,
+  razorpayMode: "test",
+  razorpayTestKeyId: null,
+  razorpayTestKeySecretSet: false,
+  razorpayTestWebhookSecretSet: false,
+  razorpayLiveKeyId: null,
+  razorpayLiveKeySecretSet: false,
+  razorpayLiveWebhookSecretSet: false,
 };
 
 export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => {
@@ -61,8 +69,12 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     gstin: row.gstin,
     gstPercent: row.gstPercent,
     invoicePrefix: row.invoicePrefix,
-    razorpayKeyId: row.razorpayKeyId,
-    razorpayKeySecretSet: !!row.razorpayKeySecretEnc,
-    razorpayWebhookSecretSet: !!row.razorpayWebhookSecretEnc,
+    razorpayMode: row.razorpayMode,
+    razorpayTestKeyId: row.razorpayTestKeyId,
+    razorpayTestKeySecretSet: !!row.razorpayTestKeySecretEnc,
+    razorpayTestWebhookSecretSet: !!row.razorpayTestWebhookSecretEnc,
+    razorpayLiveKeyId: row.razorpayLiveKeyId,
+    razorpayLiveKeySecretSet: !!row.razorpayLiveKeySecretEnc,
+    razorpayLiveWebhookSecretSet: !!row.razorpayLiveWebhookSecretEnc,
   };
 });
