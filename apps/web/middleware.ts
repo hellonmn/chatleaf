@@ -19,6 +19,23 @@ export default auth((req) => {
   const isAdmin = path.startsWith("/admin");
   const isProtected = path.startsWith("/dashboard") || isAdmin;
 
+  // Fire-and-forget request log for the admin inspector (best-effort, dev/staging).
+  try {
+    void fetch(new URL("/api/_reqlog", req.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        method: req.method,
+        path,
+        ts: Date.now(),
+        ua: req.headers.get("user-agent") ?? undefined,
+        ip: ipFromHeaders(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) ?? undefined,
+      }),
+    }).catch(() => {});
+  } catch {
+    /* never let logging break a request */
+  }
+
   // IP allowlist for the admin area (no-op unless ADMIN_IP_ALLOWLIST is set).
   if (isAdmin) {
     const ip = ipFromHeaders(
@@ -44,5 +61,7 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*"],
+  // Run on everything (so the inspector sees all routes) except static assets
+  // and the log endpoint itself (which would loop).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/_reqlog).*)"],
 };
