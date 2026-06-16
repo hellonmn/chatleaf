@@ -105,9 +105,13 @@ export function SpotlightEditor({
             </Field>
           </div>
 
-          <div className="rounded-card bg-canvas p-4">
-            <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-faint">Live preview</div>
-            <SlideView slide={sl} />
+          <div className="rounded-card bg-[#e9eef3] p-4">
+            <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-faint">
+              Live preview — how users see it
+            </div>
+            <div className="rounded-card bg-white p-5 shadow-card">
+              <SlideView slide={sl} />
+            </div>
           </div>
         </div>
       ))}
