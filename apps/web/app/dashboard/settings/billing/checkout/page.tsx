@@ -1,12 +1,12 @@
 import Script from "next/script";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { PLANS } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { getPlanConfig } from "@/lib/plan-config";
 import { getPlatformSettings } from "@/lib/platform-settings";
-import { razorpayConfigured, getRazorpayMethods } from "@/lib/razorpay";
+import { razorpayConfigured } from "@/lib/razorpay";
 import { Card } from "@/components/ui/Card";
 import { CustomCheckout } from "./CustomCheckout";
 
@@ -27,15 +27,18 @@ export default async function CheckoutPage({
   }
   const plan = sp.plan as (typeof PLANS)[number];
   const code = (sp.code ?? "").trim();
-  const [config, settings, methods] = await Promise.all([
-    getPlanConfig(plan),
-    getPlatformSettings(),
-    getRazorpayMethods(),
-  ]);
+  const [config, settings] = await Promise.all([getPlanConfig(plan), getPlatformSettings()]);
 
   const total = config.priceInr;
   const taxable = Math.round(total / (1 + settings.gstPercent / 100));
   const gst = total - taxable;
+
+  const features = [
+    `${config.seats} team seats`,
+    `${config.contacts.toLocaleString("en-IN")} contacts`,
+    `${config.messagesPerMonth.toLocaleString("en-IN")} messages / month`,
+    `${config.publishedFlows} published automations`,
+  ];
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -62,7 +65,21 @@ export default async function CheckoutPage({
           )}
         </div>
 
-        <div className="mt-4">
+        {/* What's included */}
+        <div className="mt-5">
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-faint">
+            What you get on {config.label}
+          </div>
+          <ul className="space-y-1.5 text-sm text-ink">
+            {features.map((f) => (
+              <li key={f} className="flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-brand" /> {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-5">
           <CustomCheckout
             plan={plan}
             code={code}
@@ -70,7 +87,6 @@ export default async function CheckoutPage({
             brandName={settings.brandName}
             prefillName={ctx.name ?? ""}
             prefillEmail={ctx.email}
-            methods={methods}
           />
         </div>
         <p className="mt-3 text-center text-xs text-faint">

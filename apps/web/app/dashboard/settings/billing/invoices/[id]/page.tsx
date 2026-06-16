@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
+import { Download } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
-import { PrintButton } from "./PrintButton";
 
 function inr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -22,14 +22,23 @@ export default async function InvoicePage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-ink">Tax invoice</h1>
-        <PrintButton />
+        <a
+          href={`/dashboard/settings/billing/invoices/${inv.id}/pdf`}
+          className="inline-flex items-center gap-1.5 rounded-btn bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark"
+        >
+          <Download className="h-4 w-4" /> Download PDF
+        </a>
       </div>
 
       <div className="rounded-card border border-line bg-white p-8 shadow-card">
         <div className="flex items-start justify-between">
           <div>
+            {settings.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={settings.logoUrl} alt={settings.brandName} className="mb-2 h-9 w-auto object-contain" />
+            )}
             <div className="text-lg font-extrabold text-ink">
               {settings.companyName || settings.brandName}
             </div>
