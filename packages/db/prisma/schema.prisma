@@ -64,6 +64,7 @@ model User {
   passwordHash String?
   isPlatformAdmin Boolean @default(false) // SaaS operator: cross-org access via /admin
   disabledAt   DateTime? // set by a platform admin to block this user from logging in
+  spotlightSeenVersion Int @default(0) // last "what's new" spotlight version dismissed
   twoFactorSecret  String?  // encrypted TOTP secret (set during 2FA enrollment)
   twoFactorEnabled Boolean  @default(false)
   createdAt    DateTime @default(now())
@@ -197,6 +198,17 @@ model Invoice {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+}
+
+/// "What's new" spotlight shown to users on login — a deck of slides (text /
+/// video+text layouts) stored as JSON. Bumping `version` re-shows it to everyone.
+model Spotlight {
+  id         String   @id @default("global")
+  active     Boolean  @default(false)
+  version    Int      @default(1)
+  slidesJSON Json     @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 /// A single global banner the platform operator can show across every org's

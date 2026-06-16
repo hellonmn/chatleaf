@@ -4,6 +4,7 @@ export const ACTION_META: Record<string, { label: string; tone: string }> = {
   "org.update": { label: "Org edited", tone: "bg-sky/15 text-sky" },
   "org.notes.update": { label: "Notes updated", tone: "bg-slate-100 text-slate-600" },
   "platform.announcement": { label: "Announcement", tone: "bg-violet/15 text-violet" },
+  "spotlight.save": { label: "Spotlight updated", tone: "bg-violet/15 text-violet" },
   "platform.settings": { label: "Platform settings", tone: "bg-violet/15 text-violet" },
   "plan.config": { label: "Plan edited", tone: "bg-sky/15 text-sky" },
   "coupon.save": { label: "Coupon saved", tone: "bg-sky/15 text-sky" },

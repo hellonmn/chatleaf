@@ -1,7 +1,9 @@
-import { Megaphone, Info, AlertTriangle } from "lucide-react";
+import { Megaphone, Info, AlertTriangle, Trash2 } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requirePlatformAdmin } from "@/lib/platform";
+import { deleteAnnouncementAction } from "@/lib/actions/admin";
 import { SectionCard } from "@/components/ui/Card";
+import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { AnnouncementForm } from "./AnnouncementForm";
 
 export default async function AdminAnnouncementPage() {
@@ -43,6 +45,17 @@ export default async function AdminAnnouncementPage() {
       <SectionCard title="Configure">
         <AnnouncementForm message={message} level={level} active={active} />
       </SectionCard>
+
+      {a && (
+        <form action={deleteAnnouncementAction}>
+          <ConfirmSubmit
+            message="Delete the announcement banner entirely?"
+            className="inline-flex items-center gap-1.5 rounded-btn bg-rose/10 px-3 py-1.5 text-sm font-semibold text-rose hover:bg-rose/15"
+          >
+            <Trash2 className="h-4 w-4" /> Delete announcement
+          </ConfirmSubmit>
+        </form>
+      )}
 
       <p className="flex items-center gap-1.5 text-xs text-faint">
         <Megaphone className="h-3.5 w-3.5" />

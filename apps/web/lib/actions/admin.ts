@@ -6,8 +6,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "@watool/db";
+import { prisma, Prisma } from "@watool/db";
 import { encryptSecret } from "@watool/wa";
+import { slidesSchema } from "@/lib/spotlight-types";
 import { PLANS } from "@watool/types";
 import { requirePlatformAdmin, getPlatformAdmin } from "@/lib/platform";
 import { IMPERSONATE_ORG_COOKIE } from "@/lib/session";
@@ -370,6 +371,65 @@ export async function deleteCouponAction(formData: FormData): Promise<void> {
     targetLabel: c?.code,
   });
   revalidatePath("/admin/coupons");
+}
+
+/** Remove the global announcement banner entirely. */
+export async function deleteAnnouncementAction(): Promise<void> {
+  await requirePlatformAdmin();
+  await prisma.platformAnnouncement.deleteMany({ where: { id: "global" } });
+  revalidatePath("/admin/announcement");
+  revalidatePath("/dashboard");
+}
+
+export type SpotlightState = { error?: string; ok?: string } | undefined;
+
+/** Save the "what's new" spotlight deck. `publish` bumps the version so every
+ *  user sees it again on next login. */
+export async function saveSpotlightAction(
+  _prev: SpotlightState,
+  formData: FormData,
+): Promise<SpotlightState> {
+  const actor = await requirePlatformAdmin();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("slides") ?? "[]"));
+  } catch {
+    return { error: "Could not read the slides." };
+  }
+  const parsed = slidesSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: `Check your slides — ${parsed.error.errors[0]?.message ?? "invalid"}.` };
+  }
+  if (parsed.data.some((s) => !s.title.trim())) {
+    return { error: "Every slide needs a title." };
+  }
+
+  const active = formData.get("active") === "on";
+  const publish = formData.get("publish") === "on";
+  const existing = await prisma.spotlight.findUnique({ where: { id: "global" } });
+  const version = publish ? (existing?.version ?? 0) + 1 : existing?.version ?? 1;
+  const data = {
+    active,
+    version,
+    slidesJSON: parsed.data as unknown as Prisma.InputJsonValue,
+  };
+  await prisma.spotlight.upsert({
+    where: { id: "global" },
+    create: { id: "global", ...data },
+    update: data,
+  });
+  await logAdminAction({
+    actor,
+    action: "spotlight.save",
+    targetType: "user",
+    targetId: actor.userId,
+    metadata: { active, version, slides: parsed.data.length, published: publish },
+  });
+  revalidatePath("/admin/spotlight");
+  revalidatePath("/dashboard");
+  return {
+    ok: publish ? `Published — every user will see it on next login (v${version}).` : "Saved.",
+  };
 }
 
 export type AnnouncementState = { error?: string; ok?: string } | undefined;

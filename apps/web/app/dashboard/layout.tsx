@@ -4,8 +4,10 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { getPlanLimits } from "@/lib/plan-config";
+import { getActiveSpotlightForUser } from "@/lib/spotlight";
 import { stopImpersonatingAction } from "@/lib/actions/admin";
 import { BrandMark } from "@/components/BrandMark";
+import { SpotlightModal } from "@/components/SpotlightModal";
 import { DashboardNav } from "./DashboardNav";
 import { Topbar } from "./Topbar";
 
@@ -15,12 +17,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const [members, openChats, announcement, settings, limits] = await Promise.all([
+  const [members, openChats, announcement, settings, limits, spotlight] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
     prisma.platformAnnouncement.findUnique({ where: { id: "global" } }),
     getPlatformSettings(),
     getPlanLimits(ctx.plan),
+    getActiveSpotlightForUser(ctx.userId),
   ]);
   const banner = announcement?.active && announcement.message ? announcement : null;
   const bannerWarning = banner?.level === "warning";
@@ -100,6 +103,7 @@ export default async function DashboardLayout({
         )}
         <main className="flex-1 p-6">{children}</main>
       </div>
+      {spotlight && <SpotlightModal slides={spotlight.slides} />}
     </div>
   );
 }
