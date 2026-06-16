@@ -77,7 +77,7 @@ export function SegmentBuilder({ tags, initialCount }: { tags: string[]; initial
         <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-brand shadow-sm"><Users className="h-5 w-5" /></span>
         <div>
           <div className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight text-ink">
-            {pending ? <Loader2 className="h-5 w-5 animate-spin text-brand" /> : count.toLocaleString()}
+            {pending ? <Loader2 className="h-5 w-5 animate-spin text-brand" /> : count.toLocaleString("en-IN")}
             <span className="text-sm font-semibold text-sub">contacts</span>
           </div>
           <div className="text-xs text-sub">will receive this broadcast</div>

@@ -70,8 +70,8 @@ export function PlanCards({
               )}
               <ul className="mt-3 space-y-1 text-xs text-slate-600">
                 <li>{p.seats} seats</li>
-                <li>{p.contacts.toLocaleString()} contacts</li>
-                <li>{p.messagesPerMonth.toLocaleString()} msgs / month</li>
+                <li>{p.contacts.toLocaleString("en-IN")} contacts</li>
+                <li>{p.messagesPerMonth.toLocaleString("en-IN")} msgs / month</li>
                 <li>{p.publishedFlows} published flows</li>
               </ul>
               <div className="mt-4">
