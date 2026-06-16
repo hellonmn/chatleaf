@@ -40,7 +40,7 @@ export function LogoUpload({ logoUrl, brandName }: { logoUrl: string | null; bra
           )}
           {state?.error && <p className="mt-2 text-xs text-rose">{state.error}</p>}
           {state?.ok && <p className="mt-2 text-xs text-emerald-700">{state.ok}</p>}
-          <p className="mt-2 text-xs text-faint">PNG/SVG, under 256 KB. Replaces the wordmark in the sidebars.</p>
+          <p className="mt-2 text-xs text-faint">PNG or JPG, under 512 KB. Shows in the sidebars and on invoices.</p>
         </div>
       </div>
     </div>

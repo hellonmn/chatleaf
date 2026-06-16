@@ -198,7 +198,7 @@ export async function savePlatformSettingsAction(
 }
 
 export type LogoState = { error?: string; ok?: string } | undefined;
-const MAX_LOGO_BYTES = 256 * 1024;
+const MAX_LOGO_BYTES = 512 * 1024;
 
 /** Upload a brand logo (stored as a data URL on PlatformSettings). */
 export async function uploadLogoAction(
@@ -209,7 +209,7 @@ export async function uploadLogoAction(
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) return { error: "Pick an image file." };
   if (!file.type.startsWith("image/")) return { error: "That file isn't an image." };
-  if (file.size > MAX_LOGO_BYTES) return { error: "Logo must be under 256 KB." };
+  if (file.size > MAX_LOGO_BYTES) return { error: "Logo must be under 512 KB — please compress it." };
 
   const buf = Buffer.from(await file.arrayBuffer());
   const dataUrl = `data:${file.type};base64,${buf.toString("base64")}`;
