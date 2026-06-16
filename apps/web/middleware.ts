@@ -13,15 +13,16 @@ const { auth } = NextAuth(authConfig);
  * are enforced in the /admin layout (it needs the DB). Auth.js v5 exposes
  * `auth` as middleware directly.
  */
-export default auth((req) => {
+export default auth(async (req) => {
   const isLoggedIn = !!req.auth;
   const path = req.nextUrl.pathname;
   const isAdmin = path.startsWith("/admin");
   const isProtected = path.startsWith("/dashboard") || isAdmin;
 
-  // Fire-and-forget request log for the admin inspector (best-effort, dev/staging).
+  // Request log for the admin inspector. Awaited in dev so the write reliably
+  // lands (edge fire-and-forget gets dropped); best-effort in production.
   try {
-    void fetch(new URL("/api/_reqlog", req.url), {
+    const logged = fetch(new URL("/api/request-log", req.url), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -32,6 +33,7 @@ export default auth((req) => {
         ip: ipFromHeaders(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) ?? undefined,
       }),
     }).catch(() => {});
+    if (process.env.NODE_ENV !== "production") await logged;
   } catch {
     /* never let logging break a request */
   }
@@ -63,5 +65,5 @@ export default auth((req) => {
 export const config = {
   // Run on everything (so the inspector sees all routes) except static assets
   // and the log endpoint itself (which would loop).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/_reqlog).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/request-log).*)"],
 };

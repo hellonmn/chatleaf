@@ -23,7 +23,7 @@ export function LogsTable() {
     let timer: ReturnType<typeof setTimeout>;
     async function tick() {
       try {
-        const r = await fetch(`/api/_reqlog?since=${lastId.current}`, { cache: "no-store" });
+        const r = await fetch(`/api/request-log?since=${lastId.current}`, { cache: "no-store" });
         if (r.ok) {
           const { logs: fresh } = (await r.json()) as { logs: RequestLogEntry[] };
           if (fresh.length) {
