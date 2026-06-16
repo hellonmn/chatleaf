@@ -35,13 +35,14 @@ export default async function InvoicePage({
       <div className="rounded-card border border-line bg-white p-8 shadow-card">
         <div className="flex items-start justify-between">
           <div>
-            {settings.logoUrl && (
+            {settings.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={settings.logoUrl} alt={settings.brandName} className="mb-2 h-9 w-auto object-contain" />
+              <img src={settings.logoUrl} alt={settings.brandName} className="h-10 w-auto object-contain" />
+            ) : (
+              <div className="text-lg font-extrabold text-ink">
+                {settings.companyName || settings.brandName}
+              </div>
             )}
-            <div className="text-lg font-extrabold text-ink">
-              {settings.companyName || settings.brandName}
-            </div>
             {settings.companyAddress && (
               <div className="mt-0.5 max-w-xs whitespace-pre-line text-xs text-sub">
                 {settings.companyAddress}

@@ -44,6 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // ── Header: logo + seller (left), invoice meta (right) ──
   const logo = decodeDataUrl(settings.logoUrl);
   let headerLeftY = y;
+  let logoShown = false;
   if (logo) {
     try {
       const img = logo.mime.includes("png")
@@ -52,17 +53,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           ? await doc.embedJpg(logo.bytes)
           : null;
       if (img) {
-        const h = 36;
+        const h = 40;
         const w = (img.width / img.height) * h;
         page.drawImage(img, { x: M, y: y - h, width: w, height: h });
         headerLeftY = y - h - 14;
+        logoShown = true;
       }
     } catch {
       /* unsupported image — skip */
     }
   }
-  text(settings.companyName || settings.brandName, M, headerLeftY, 14, bold);
-  let ly = headerLeftY - 14;
+  // Logo already carries the brand — only print the company name when there's no logo.
+  let ly = headerLeftY;
+  if (!logoShown) {
+    text(settings.companyName || settings.brandName, M, headerLeftY, 14, bold);
+    ly = headerLeftY - 14;
+  }
   if (settings.companyAddress) {
     for (const ln of settings.companyAddress.split("\n").slice(0, 3)) {
       text(ln, M, ly, 9, font, sub);
