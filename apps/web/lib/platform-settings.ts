@@ -27,6 +27,7 @@ export type PlatformSettings = {
   razorpayLiveKeyId: string | null;
   razorpayLiveKeySecretSet: boolean;
   razorpayLiveWebhookSecretSet: boolean;
+  metaAppId: string | null;
   metaVerifyToken: string | null;
   metaAppSecretSet: boolean;
   metaSkipSignatureCheck: boolean;
@@ -53,6 +54,7 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   razorpayLiveKeyId: null,
   razorpayLiveKeySecretSet: false,
   razorpayLiveWebhookSecretSet: false,
+  metaAppId: null,
   metaVerifyToken: null,
   metaAppSecretSet: false,
   metaSkipSignatureCheck: false,
@@ -82,6 +84,7 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     razorpayLiveKeyId: row.razorpayLiveKeyId,
     razorpayLiveKeySecretSet: !!row.razorpayLiveKeySecretEnc,
     razorpayLiveWebhookSecretSet: !!row.razorpayLiveWebhookSecretEnc,
+    metaAppId: row.metaAppId,
     metaVerifyToken: row.metaVerifyToken,
     metaAppSecretSet: !!row.metaAppSecretEnc,
     metaSkipSignatureCheck: row.metaSkipSignatureCheck,

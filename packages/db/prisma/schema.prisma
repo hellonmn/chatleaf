@@ -172,6 +172,7 @@ model PlatformSettings {
   razorpayLiveKeySecretEnc     String?
   razorpayLiveWebhookSecretEnc String?
   // Meta / WhatsApp webhook (override env). App secret encrypted at rest.
+  metaAppId              String?
   metaVerifyToken        String?
   metaAppSecretEnc       String?
   metaSkipSignatureCheck Boolean @default(false)

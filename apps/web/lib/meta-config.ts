@@ -10,9 +10,10 @@ import { decryptSecret } from "@watool/wa";
 export const getMetaWebhookConfig = cache(async () => {
   const s = await prisma.platformSettings.findUnique({
     where: { id: "global" },
-    select: { metaVerifyToken: true, metaAppSecretEnc: true, metaSkipSignatureCheck: true },
+    select: { metaAppId: true, metaVerifyToken: true, metaAppSecretEnc: true, metaSkipSignatureCheck: true },
   });
   return {
+    appId: s?.metaAppId || process.env.META_APP_ID || null,
     verifyToken: s?.metaVerifyToken || process.env.META_WEBHOOK_VERIFY_TOKEN || null,
     appSecret: s?.metaAppSecretEnc
       ? decryptSecret(s.metaAppSecretEnc)

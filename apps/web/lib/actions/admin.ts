@@ -179,6 +179,7 @@ export async function savePlatformSettingsAction(
     razorpayLiveKeyId: String(formData.get("razorpayLiveKeyId") ?? "").trim() || null,
     razorpayLiveKeySecretEnc: keepSecret("razorpayLiveKeySecret", existing?.razorpayLiveKeySecretEnc),
     razorpayLiveWebhookSecretEnc: keepSecret("razorpayLiveWebhookSecret", existing?.razorpayLiveWebhookSecretEnc),
+    metaAppId: String(formData.get("metaAppId") ?? "").trim() || null,
     metaVerifyToken: String(formData.get("metaVerifyToken") ?? "").trim() || null,
     metaAppSecretEnc: keepSecret("metaAppSecret", existing?.metaAppSecretEnc),
     metaSkipSignatureCheck: on("metaSkipSignatureCheck"),

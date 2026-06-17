@@ -176,6 +176,10 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
             Configuration, and your App Secret (Meta → App → Settings → Basic).
           </p>
           <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">App ID</label>
+            <input name="metaAppId" defaultValue={settings.metaAppId ?? ""} placeholder="1234567890" className={field} />
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-semibold text-sub">Webhook verify token</label>
             <input name="metaVerifyToken" defaultValue={settings.metaVerifyToken ?? ""} placeholder="a long random string" className={field} />
           </div>

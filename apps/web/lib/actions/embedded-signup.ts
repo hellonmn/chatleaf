@@ -11,6 +11,7 @@ import {
 } from "@watool/wa";
 import { canManageOrg } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { getMetaWebhookConfig } from "@/lib/meta-config";
 
 export type ESResult = { error?: string; ok?: string };
 
@@ -37,10 +38,9 @@ export async function completeEmbeddedSignupAction(
   if (!parsed.success) return { error: "Incomplete signup data from Meta." };
   const { code, wabaId, phoneNumberId } = parsed.data;
 
-  const appId = process.env.META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
+  const { appId, appSecret } = await getMetaWebhookConfig();
   if (!appId || !appSecret || appSecret.includes("REPLACE_WITH")) {
-    return { error: "Embedded Signup isn't configured on the server (META_APP_ID / META_APP_SECRET)." };
+    return { error: "Embedded Signup isn't configured (set Meta App ID + App Secret in Admin → Settings → Integrations, or env)." };
   }
 
   // A WABA may not be claimed by a different org.
