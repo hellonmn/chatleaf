@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck, UserCog } from "lucide-react";
 import { signOutAction } from "@/lib/actions/signout";
+import { ChannelSwitcher, type ChannelOpt } from "@/components/ChannelSwitcher";
 
 /** Per-route page title + subtitle, mirroring the Chatleaf Portal mockup's META map. */
 const META: Record<string, { title: string; subtitle: string }> = {
@@ -44,6 +45,8 @@ export function Topbar({
   orgName,
   inboxCount = 0,
   isPlatformAdmin = false,
+  channels = [],
+  activeChannelId = null,
 }: {
   name: string | null;
   email: string;
@@ -52,6 +55,8 @@ export function Topbar({
   orgName: string;
   inboxCount?: number;
   isPlatformAdmin?: boolean;
+  channels?: ChannelOpt[];
+  activeChannelId?: string | null;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -97,6 +102,7 @@ export function Topbar({
 
       {/* Workspace + bell + profile */}
       <div className="flex shrink-0 items-center gap-2">
+      <ChannelSwitcher channels={channels} activeId={activeChannelId} />
       <div className="hidden items-center gap-2 rounded-card border border-line bg-white px-2.5 py-1.5 sm:flex">
         <span className="grid h-6 w-6 place-items-center rounded-md bg-brand text-[11px] font-bold text-white">
           {orgInitials}

@@ -1,5 +1,6 @@
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { avatarColor } from "@/lib/avatar";
 import { InboxRealtime } from "@/components/InboxRealtime";
 import { EnableNotifications } from "@/components/EnableNotifications";
@@ -17,9 +18,10 @@ export default async function InboxLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
+  const activeChannelId = await getActiveChannelId();
 
   const conversations = await prisma.conversation.findMany({
-    where: { orgId: ctx.orgId },
+    where: { orgId: ctx.orgId, ...(activeChannelId ? { phoneNumberId: activeChannelId } : {}) },
     include: {
       contact: true,
       messages: { orderBy: { createdAt: "desc" }, take: 15 },

@@ -5,6 +5,7 @@ import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { getPlanLimits } from "@/lib/plan-config";
 import { getActiveSpotlightForUser } from "@/lib/spotlight";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { stopImpersonatingAction } from "@/lib/actions/admin";
 import { BrandMark } from "@/components/BrandMark";
 import { SpotlightModal } from "@/components/SpotlightModal";
@@ -17,14 +18,21 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const [members, openChats, announcement, settings, limits, spotlight] = await Promise.all([
+  const [members, openChats, announcement, settings, limits, spotlight, phones, activeChannelId] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
     prisma.platformAnnouncement.findUnique({ where: { id: "global" } }),
     getPlatformSettings(),
     getPlanLimits(ctx.plan),
     getActiveSpotlightForUser(ctx.userId),
+    prisma.phoneNumber.findMany({
+      where: { account: { orgId: ctx.orgId } },
+      select: { id: true, displayNumber: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    getActiveChannelId(),
   ]);
+  const channels = phones.map((p) => ({ id: p.id, label: p.displayNumber }));
   const banner = announcement?.active && announcement.message ? announcement : null;
   const bannerWarning = banner?.level === "warning";
   const seats = ctx.seatLimitOverride ?? limits.seats;
@@ -86,6 +94,8 @@ export default async function DashboardLayout({
           orgName={ctx.orgName}
           inboxCount={openChats}
           isPlatformAdmin={ctx.isPlatformAdmin}
+          channels={channels}
+          activeChannelId={activeChannelId}
         />
         {banner && (
           <div
