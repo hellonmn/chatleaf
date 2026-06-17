@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building2, Users, ScrollText, MessageCircle, DollarSign, Megaphone, Settings, CreditCard, Ticket, Sparkles, Activity, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, Users, ScrollText, MessageCircle, DollarSign, Megaphone, Settings, CreditCard, Ticket, Sparkles, Activity, Wallet, type LucideIcon } from "lucide-react";
 
 const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -10,6 +10,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] 
   { href: "/admin/plans", label: "Plans", icon: CreditCard },
   { href: "/admin/coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/revenue", label: "Revenue", icon: DollarSign },
+  { href: "/admin/wallets", label: "Wallets", icon: Wallet },
   { href: "/admin/health", label: "WhatsApp health", icon: MessageCircle },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/announcement", label: "Announcement", icon: Megaphone },

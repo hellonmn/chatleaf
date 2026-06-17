@@ -13,6 +13,7 @@ import { PLANS } from "@watool/types";
 import { requirePlatformAdmin, getPlatformAdmin } from "@/lib/platform";
 import { IMPERSONATE_ORG_COOKIE } from "@/lib/session";
 import { logAdminAction } from "@/lib/audit";
+import { creditWallet, debitWallet } from "@/lib/wallet";
 import { slugify } from "@/lib/slug";
 
 const orgIdSchema = z.object({ orgId: z.string().min(1) });
@@ -253,6 +254,61 @@ export async function removeLogoAction(): Promise<void> {
   await prisma.platformSettings.updateMany({ data: { logoUrl: null } });
   revalidatePath("/admin/settings");
   revalidatePath("/dashboard");
+}
+
+export type WalletAdjustState = { error?: string; ok?: string } | undefined;
+
+/** Manually credit or debit an org's wallet (platform admins only). Amount is in
+ *  rupees; direction is "credit" or "debit". Writes a ledger entry + audit log. */
+export async function adjustWalletAction(
+  _prev: WalletAdjustState,
+  formData: FormData,
+): Promise<WalletAdjustState> {
+  const actor = await requirePlatformAdmin();
+  const parsed = z
+    .object({
+      orgId: z.string().min(1),
+      direction: z.enum(["credit", "debit"]),
+      amountInr: z.coerce.number().positive().max(1_000_000),
+      note: z.string().trim().max(200).optional(),
+    })
+    .safeParse({
+      orgId: formData.get("orgId"),
+      direction: formData.get("direction"),
+      amountInr: formData.get("amountInr"),
+      note: formData.get("note") ?? "",
+    });
+  if (!parsed.success) return { error: "Enter a valid amount and direction." };
+
+  const { orgId, direction, amountInr, note } = parsed.data;
+  const org = await prisma.org.findUnique({ where: { id: orgId }, select: { name: true } });
+  if (!org) return { error: "Organization not found." };
+  const amountPaise = Math.round(amountInr * 100);
+
+  const meta = {
+    kind: "adjustment" as const,
+    note: note || `Manual ${direction} by admin`,
+    refType: "admin",
+    refId: actor.userId,
+  };
+
+  if (direction === "credit") {
+    await creditWallet(orgId, amountPaise, meta);
+  } else {
+    const res = await debitWallet(orgId, amountPaise, meta);
+    if (!res.ok) return { error: "Insufficient balance for that debit." };
+  }
+
+  await logAdminAction({
+    actor,
+    action: `wallet.${direction}`,
+    targetType: "org",
+    targetId: orgId,
+    targetLabel: org.name,
+    metadata: { amountPaise, note: meta.note },
+  });
+  revalidatePath("/admin/wallets");
+  return { ok: `${direction === "credit" ? "Credited" : "Debited"} ₹${amountInr.toLocaleString("en-IN")} ${direction === "credit" ? "to" : "from"} ${org.name}.` };
 }
 
 export type PlanConfigState = { error?: string; ok?: string } | undefined;

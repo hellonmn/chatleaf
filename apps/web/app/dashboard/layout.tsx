@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, Info, AlertTriangle } from "lucide-react";
+import { Eye, Info, AlertTriangle, Wallet } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
@@ -18,7 +18,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const ctx = await requireActiveContext();
-  const [members, openChats, announcement, settings, limits, spotlight, phones, activeChannelId] = await Promise.all([
+  const [members, openChats, announcement, settings, limits, spotlight, phones, activeChannelId, wallet] = await Promise.all([
     prisma.membership.count({ where: { orgId: ctx.orgId } }),
     prisma.conversation.count({ where: { orgId: ctx.orgId, status: { in: ["BOT", "AGENT", "OPEN"] } } }),
     prisma.platformAnnouncement.findUnique({ where: { id: "global" } }),
@@ -31,10 +31,14 @@ export default async function DashboardLayout({
       orderBy: { createdAt: "asc" },
     }),
     getActiveChannelId(),
+    prisma.wallet.findUnique({ where: { orgId: ctx.orgId }, select: { balancePaise: true, lowBalanceThresholdPaise: true } }),
   ]);
   const channels = phones.map((p) => ({ id: p.id, label: p.displayNumber }));
   const banner = announcement?.active && announcement.message ? announcement : null;
   const bannerWarning = banner?.level === "warning";
+  // Low-balance nudge only when wallet billing is actually switched on platform-wide.
+  const lowWallet = settings.walletBillingEnabled && !!wallet && wallet.balancePaise <= wallet.lowBalanceThresholdPaise;
+  const walletBalanceInr = wallet ? (wallet.balancePaise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "0";
   const seats = ctx.seatLimitOverride ?? limits.seats;
   const pct = Math.min(100, Math.round((members / seats) * 100));
 
@@ -110,6 +114,16 @@ export default async function DashboardLayout({
             )}
             <span>{banner.message}</span>
           </div>
+        )}
+        {lowWallet && (
+          <Link
+            href="/dashboard/settings/wallet"
+            className="flex items-center gap-2 bg-rose/10 px-6 py-2.5 text-sm font-medium text-rose hover:bg-rose/15"
+          >
+            <Wallet className="h-4 w-4 shrink-0" />
+            <span>Low wallet balance (₹{walletBalanceInr}) — top up to keep messages sending.</span>
+            <span className="ml-auto font-semibold underline">Add funds</span>
+          </Link>
         )}
         <main className="flex-1 p-6">{children}</main>
       </div>
