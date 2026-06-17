@@ -1,16 +1,21 @@
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { toCsv } from "@/lib/csv";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Download all contacts for the active org as a CSV. */
+/** Download contacts for the active org (and active channel, if set) as a CSV. */
 export async function GET() {
   const ctx = await requireActiveContext();
+  const activeChannelId = await getActiveChannelId();
 
   const contacts = await prisma.contact.findMany({
-    where: { orgId: ctx.orgId },
+    where: {
+      orgId: ctx.orgId,
+      ...(activeChannelId ? { conversations: { some: { phoneNumberId: activeChannelId } } } : {}),
+    },
     include: { contactTags: { include: { tag: true } } },
     orderBy: { createdAt: "desc" },
     take: 50000,

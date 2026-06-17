@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Plus, Megaphone, Search, Download } from "lucide-react";
-import { prisma } from "@watool/db";
+import { prisma, type Prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { Card } from "@/components/ui/Card";
 import { ImportContacts } from "./ImportContacts";
 import { ContactsTable, type Row } from "./ContactsTable";
@@ -24,9 +25,16 @@ export default async function ContactsPage({
   const ctx = await requireActiveContext();
   const { stage, q } = await searchParams;
   const activeStage = STAGES.includes(stage as Stage) ? (stage as Stage) : null;
+  const activeChannelId = await getActiveChannelId();
 
-  const where = {
+  // Per-channel: only contacts who've conversed on the selected number.
+  const channelFilter: Prisma.ContactWhereInput = activeChannelId
+    ? { conversations: { some: { phoneNumberId: activeChannelId } } }
+    : {};
+
+  const where: Prisma.ContactWhereInput = {
     orgId: ctx.orgId,
+    ...channelFilter,
     ...(activeStage ? { stage: activeStage } : {}),
     ...(q
       ? {
@@ -40,8 +48,8 @@ export default async function ContactsPage({
   };
 
   const [grouped, total, contacts, tagRows] = await Promise.all([
-    prisma.contact.groupBy({ by: ["stage"], where: { orgId: ctx.orgId }, _count: true }),
-    prisma.contact.count({ where: { orgId: ctx.orgId } }),
+    prisma.contact.groupBy({ by: ["stage"], where: { orgId: ctx.orgId, ...channelFilter }, _count: true }),
+    prisma.contact.count({ where: { orgId: ctx.orgId, ...channelFilter } }),
     prisma.contact.findMany({
       where,
       include: {
@@ -77,6 +85,9 @@ export default async function ContactsPage({
   const counts: Record<Stage, number> = { NEW: 0, QUALIFIED: 0, ENGAGED: 0, CONVERTED: 0 };
   for (const g of grouped) counts[g.stage as Stage] = g._count;
   const maxCount = Math.max(1, ...STAGES.map((s) => counts[s]));
+  const channelLabel = activeChannelId
+    ? (await prisma.phoneNumber.findUnique({ where: { id: activeChannelId }, select: { displayNumber: true } }))?.displayNumber ?? null
+    : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -102,7 +113,12 @@ export default async function ContactsPage({
       {/* Table */}
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {channelLabel && (
+              <span className="mr-1 inline-flex items-center gap-1 rounded-pill bg-[#25D366]/10 px-2 py-1 text-xs font-semibold text-[#1da851]">
+                {channelLabel}
+              </span>
+            )}
             <FilterPill href="/dashboard/contacts" active={!activeStage}>All {total}</FilterPill>
             {STAGES.map((s) => (
               <FilterPill key={s} href={`/dashboard/contacts?stage=${s}`} active={activeStage === s}>
