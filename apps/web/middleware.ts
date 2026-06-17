@@ -19,23 +19,25 @@ export default auth(async (req) => {
   const isAdmin = path.startsWith("/admin");
   const isProtected = path.startsWith("/dashboard") || isAdmin;
 
-  // Request log for the admin inspector. Awaited in dev so the write reliably
-  // lands (edge fire-and-forget gets dropped); best-effort in production.
-  try {
-    const logged = fetch(new URL("/api/request-log", req.url), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        method: req.method,
-        path,
-        ts: Date.now(),
-        ua: req.headers.get("user-agent") ?? undefined,
-        ip: ipFromHeaders(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) ?? undefined,
-      }),
-    }).catch(() => {});
-    if (process.env.NODE_ENV !== "production") await logged;
-  } catch {
-    /* never let logging break a request */
+  // Request log for the admin inspector. On in dev; in production set
+  // REQUEST_LOG=on to enable. Awaited so the write reliably lands (edge
+  // fire-and-forget gets dropped). Note: in-memory + single-instance.
+  if (process.env.NODE_ENV !== "production" || process.env.REQUEST_LOG === "on") {
+    try {
+      await fetch(new URL("/api/request-log", req.url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          method: req.method,
+          path,
+          ts: Date.now(),
+          ua: req.headers.get("user-agent") ?? undefined,
+          ip: ipFromHeaders(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) ?? undefined,
+        }),
+      }).catch(() => {});
+    } catch {
+      /* never let logging break a request */
+    }
   }
 
   // IP allowlist for the admin area (no-op unless ADMIN_IP_ALLOWLIST is set).
