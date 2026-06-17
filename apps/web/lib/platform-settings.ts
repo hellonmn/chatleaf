@@ -31,6 +31,10 @@ export type PlatformSettings = {
   metaVerifyToken: string | null;
   metaAppSecretSet: boolean;
   metaSkipSignatureCheck: boolean;
+  webhookForwardEnabled: boolean;
+  webhookForwardUrl: string | null;
+  webhookForwardHeaderName: string | null;
+  webhookForwardHeaderValue: string | null;
 };
 
 export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
@@ -58,6 +62,10 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   metaVerifyToken: null,
   metaAppSecretSet: false,
   metaSkipSignatureCheck: false,
+  webhookForwardEnabled: false,
+  webhookForwardUrl: null,
+  webhookForwardHeaderName: null,
+  webhookForwardHeaderValue: null,
 };
 
 export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => {
@@ -88,5 +96,9 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     metaVerifyToken: row.metaVerifyToken,
     metaAppSecretSet: !!row.metaAppSecretEnc,
     metaSkipSignatureCheck: row.metaSkipSignatureCheck,
+    webhookForwardEnabled: row.webhookForwardEnabled,
+    webhookForwardUrl: row.webhookForwardUrl,
+    webhookForwardHeaderName: row.webhookForwardHeaderName,
+    webhookForwardHeaderValue: row.webhookForwardHeaderValue,
   };
 });

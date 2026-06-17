@@ -188,6 +188,40 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
             <input type="checkbox" name="metaSkipSignatureCheck" defaultChecked={settings.metaSkipSignatureCheck} className="h-4 w-4 rounded border-line" />
             Skip signature verification (testing only — not recommended in production)
           </label>
+
+          {/* Webhook relay → second platform */}
+          <div className="mt-6 border-t border-line pt-5">
+            <h3 className="text-base font-bold text-ink">Forward to a second platform</h3>
+            <p className="-mt-0.5 mb-3 text-sm text-sub">
+              Meta allows only one callback URL per app. Enable this to relay every
+              inbound event to another platform — the <strong>raw payload</strong> is
+              forwarded with Meta&apos;s original{" "}
+              <code className="rounded bg-canvas px-1 text-xs">X-Hub-Signature-256</code>{" "}
+              header, so a Meta-style receiver can verify it against the same App Secret.
+            </p>
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input type="checkbox" name="webhookForwardEnabled" defaultChecked={settings.webhookForwardEnabled} className="h-4 w-4 rounded border-line" />
+              Forward inbound webhook events
+            </label>
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-semibold text-sub">Destination webhook URL</label>
+              <input name="webhookForwardUrl" defaultValue={settings.webhookForwardUrl ?? ""} placeholder="https://your-other-platform.com/api/webhooks/whatsapp" className={field} />
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-sub">Extra header name (optional)</label>
+                <input name="webhookForwardHeaderName" defaultValue={settings.webhookForwardHeaderName ?? ""} placeholder="Authorization" className={field} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-sub">Extra header value (optional)</label>
+                <input name="webhookForwardHeaderValue" defaultValue={settings.webhookForwardHeaderValue ?? ""} placeholder="Bearer your-token" className={field} />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-faint">
+              Use the extra header if the other platform needs its own auth token instead of
+              (or in addition to) the Meta signature. Leave blank to forward only Meta&apos;s headers.
+            </p>
+          </div>
         </section>
 
         {/* Features */}

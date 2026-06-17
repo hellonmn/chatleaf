@@ -176,6 +176,12 @@ model PlatformSettings {
   metaVerifyToken        String?
   metaAppSecretEnc       String?
   metaSkipSignatureCheck Boolean @default(false)
+  // Webhook relay: forward each inbound Meta event (raw bytes, original signature
+  // preserved) to a second platform, since Meta allows only one callback URL per app.
+  webhookForwardEnabled     Boolean @default(false)
+  webhookForwardUrl         String?
+  webhookForwardHeaderName  String?
+  webhookForwardHeaderValue String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

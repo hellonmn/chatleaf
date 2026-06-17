@@ -27,6 +27,48 @@ function appSecretConfigured(secret: string | undefined): secret is string {
 }
 
 /**
+ * Relay the raw inbound event to a second platform (Meta allows only one callback
+ * URL per app). The original body + signature headers are preserved so a
+ * Meta-style receiver can verify against the same App Secret. Best-effort: a
+ * forwarding failure must never affect the 200 we owe Meta.
+ */
+async function forwardWebhook(
+  cfg: Awaited<ReturnType<typeof getMetaWebhookConfig>>,
+  rawBody: string,
+  reqHeaders: Headers,
+): Promise<void> {
+  if (!cfg.forwardEnabled || !cfg.forwardUrl) return;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  const sig256 = reqHeaders.get("x-hub-signature-256");
+  const sig = reqHeaders.get("x-hub-signature");
+  if (sig256) headers["x-hub-signature-256"] = sig256;
+  if (sig) headers["x-hub-signature"] = sig;
+  if (cfg.forwardHeaderName && cfg.forwardHeaderValue) {
+    headers[cfg.forwardHeaderName] = cfg.forwardHeaderValue;
+  }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(cfg.forwardUrl, {
+      method: "POST",
+      headers,
+      body: rawBody,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      logger.warn("webhook forward non-2xx", { url: cfg.forwardUrl, status: res.status });
+    }
+  } catch (err) {
+    logger.warn("webhook forward failed", {
+      url: cfg.forwardUrl,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * GET — Meta webhook verification handshake. Echo back `hub.challenge` iff the
  * verify token matches.
  */
@@ -94,6 +136,10 @@ export async function POST(req: Request) {
   } catch {
     return new Response("Bad JSON", { status: 400 });
   }
+
+  // Relay to a second platform (best-effort, awaited so it isn't dropped by the
+  // serverless runtime after we respond). Never blocks the 200 on failure.
+  await forwardWebhook(metaCfg, rawBody, req.headers);
 
   try {
     const event = await prisma.webhookEvent.create({ data: { raw: parsed as object } });

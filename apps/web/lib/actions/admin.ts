@@ -151,6 +151,11 @@ export async function savePlatformSettingsAction(
   const on = (name: string) => formData.get(name) === "on";
   const gstPercentRaw = Number(formData.get("gstPercent"));
 
+  const fwdUrl = String(formData.get("webhookForwardUrl") ?? "").trim();
+  if (on("webhookForwardEnabled") && fwdUrl && !z.string().url().safeParse(fwdUrl).success) {
+    return { error: "Webhook forward URL must be a valid http(s) URL." };
+  }
+
   // Secrets: a blank input keeps the existing value (they're never shown back).
   const existing = await prisma.platformSettings.findUnique({ where: { id: PLATFORM_SETTINGS_ID } });
   const keepSecret = (field: string, current: string | null | undefined) => {
@@ -183,6 +188,10 @@ export async function savePlatformSettingsAction(
     metaVerifyToken: String(formData.get("metaVerifyToken") ?? "").trim() || null,
     metaAppSecretEnc: keepSecret("metaAppSecret", existing?.metaAppSecretEnc),
     metaSkipSignatureCheck: on("metaSkipSignatureCheck"),
+    webhookForwardEnabled: on("webhookForwardEnabled"),
+    webhookForwardUrl: String(formData.get("webhookForwardUrl") ?? "").trim() || null,
+    webhookForwardHeaderName: String(formData.get("webhookForwardHeaderName") ?? "").trim() || null,
+    webhookForwardHeaderValue: String(formData.get("webhookForwardHeaderValue") ?? "").trim() || null,
   };
 
   await prisma.platformSettings.upsert({
