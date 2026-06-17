@@ -224,9 +224,9 @@ export default async function DashboardOverview() {
 
           <SectionCard title="Channels" action={{ label: "Manage", href: "/dashboard/settings/whatsapp" }}>
             <div className="space-y-3">
-              <ChannelRow name="WhatsApp Business" connected={waAccount?.status === "CONNECTED"} />
-              <ChannelRow name="Telegram" soon />
-              <ChannelRow name="Instagram DM" soon />
+              <ChannelRow name="WhatsApp Business" logo="/channels/whatsapp.png" connected={waAccount?.status === "CONNECTED"} />
+              <ChannelRow name="Telegram" logo="/channels/telegram.png" soon />
+              <ChannelRow name="Instagram DM" logo="/channels/instagram.png" soon />
             </div>
           </SectionCard>
         </div>
@@ -286,11 +286,15 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ChannelRow({ name, connected, soon }: { name: string; connected?: boolean; soon?: boolean }) {
+function ChannelRow({ name, logo, connected, soon }: { name: string; logo?: string; connected?: boolean; soon?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="flex items-center gap-2 text-sm text-ink">
-        <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-brand" : "bg-line"}`} />
+      <span className="flex items-center gap-2.5 text-sm text-ink">
+        {logo ? (
+          <img src={logo} alt={name} className="h-6 w-6 object-contain" />
+        ) : (
+          <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-brand" : "bg-line"}`} />
+        )}
         {name}
       </span>
       {soon ? (

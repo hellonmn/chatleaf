@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Send, Instagram, Plus, Pencil, Smartphone, ShieldAlert } from "lucide-react";
+import { MessageCircle, Plus, Pencil, Smartphone, ShieldAlert } from "lucide-react";
 import { disconnectWhatsAppAction } from "@/lib/actions/whatsapp";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { EmbeddedSignup } from "@/components/EmbeddedSignup";
@@ -73,8 +73,8 @@ export function ChannelsManager({
           const phone = c.phones[0];
           return (
             <button key={c.id} type="button" onClick={() => select(c.id)} className={rowCls(selected === c.id)}>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#25D366] text-white">
-                <MessageCircle className="h-5 w-5" />
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-white">
+                <img src="/channels/whatsapp.png" alt="WhatsApp" className="h-6 w-6 object-contain" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-ink">
@@ -98,18 +98,15 @@ export function ChannelsManager({
         )}
 
         <div className="px-1 pt-3 text-xs font-bold uppercase tracking-wide text-faint">Coming soon</div>
-        {[{ name: "Telegram", icon: Send, bg: "#229ED9" }, { name: "Instagram DM", icon: Instagram, bg: "#E1306C" }].map((ch) => {
-          const Icon = ch.icon;
-          return (
-            <div key={ch.name} className="flex items-center gap-3 rounded-card border border-line bg-white px-3 py-2.5 opacity-70">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white" style={{ background: ch.bg }}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="text-sm font-semibold text-sub">{ch.name}</span>
-              <span className="ml-auto rounded-pill bg-warm/15 px-2 py-0.5 text-[10px] font-semibold text-[#c47a2e]">soon</span>
-            </div>
-          );
-        })}
+        {[{ name: "Telegram", logo: "/channels/telegram.png" }, { name: "Instagram DM", logo: "/channels/instagram.png" }].map((ch) => (
+          <div key={ch.name} className="flex items-center gap-3 rounded-card border border-line bg-white px-3 py-2.5 opacity-70">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-white">
+              <img src={ch.logo} alt={ch.name} className="h-6 w-6 object-contain" />
+            </span>
+            <span className="text-sm font-semibold text-sub">{ch.name}</span>
+            <span className="ml-auto rounded-pill bg-warm/15 px-2 py-0.5 text-[10px] font-semibold text-[#c47a2e]">soon</span>
+          </div>
+        ))}
       </div>
 
       {/* Right: detail / connect */}
