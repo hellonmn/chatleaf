@@ -12,6 +12,7 @@ import {
 } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { getPlanLimits } from "@/lib/plan-config";
+import { getActiveChannelId } from "@/lib/active-channel";
 
 export type SaveState = { error?: string; ok?: string } | undefined;
 
@@ -44,6 +45,7 @@ export async function createFlowFromTemplateAction(formData: FormData): Promise<
       orgId: ctx.orgId,
       name: tpl.name,
       status: "DRAFT",
+      phoneNumberId: await getActiveChannelId(),
       versions: { create: { version: 1, graphJSON: tpl.build() as Prisma.InputJsonValue } },
     },
   });
@@ -61,12 +63,27 @@ export async function createFlowAction(formData: FormData): Promise<void> {
       orgId: ctx.orgId,
       name,
       status: "DRAFT",
+      phoneNumberId: await getActiveChannelId(),
       versions: {
         create: { version: 1, graphJSON: starterGraph() as Prisma.InputJsonValue },
       },
     },
   });
   redirect(`/flows/${flow.id}`);
+}
+
+/** Assign a flow to a channel (PhoneNumber id) or all channels (""). */
+export async function setFlowChannelAction(formData: FormData): Promise<void> {
+  const ctx = await requireActiveContext();
+  if (!canManageOrg(ctx.role)) return;
+  const flowId = String(formData.get("flowId") ?? "");
+  const channelId = String(formData.get("channelId") ?? "").trim() || null;
+  if (!flowId) return;
+  await prisma.flow.updateMany({
+    where: { id: flowId, orgId: ctx.orgId },
+    data: { phoneNumberId: channelId },
+  });
+  revalidatePath("/dashboard/flows");
 }
 
 export async function deleteFlowAction(formData: FormData): Promise<void> {

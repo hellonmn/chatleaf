@@ -534,13 +534,14 @@ enum FlowRunStatus {
 }
 
 model Flow {
-  id        String     @id @default(cuid())
-  orgId     String
-  name      String
-  status    FlowStatus @default(DRAFT)
-  trigger   Json       @default("{}")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id            String     @id @default(cuid())
+  orgId         String
+  name          String
+  status        FlowStatus @default(DRAFT)
+  trigger       Json       @default("{}")
+  phoneNumberId String? // channel scope (PhoneNumber id); null = all channels
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
   versions FlowVersion[]

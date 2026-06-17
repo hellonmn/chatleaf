@@ -226,6 +226,7 @@ async function handleInboundMessage(
       attributes: (contact.attributes as Record<string, unknown>) ?? {},
     },
     phoneNumberId: phoneNumber.phoneNumberId,
+    channelId: phoneNumber.id,
     accessToken,
     inboundText,
   });

@@ -2,11 +2,13 @@ import Link from "next/link";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
 import { createFlowAction, createFlowFromTemplateAction, deleteFlowAction } from "@/lib/actions/flows";
 import { FLOW_TEMPLATES } from "@/lib/flow-templates";
 import { FeatureDisabled } from "@/components/FeatureDisabled";
+import { FlowChannelSelect } from "./FlowChannelSelect";
 
 const STATUS_STYLE: Record<string, string> = {
   PUBLISHED: "bg-emerald-100 text-emerald-700",
@@ -18,12 +20,26 @@ export default async function FlowsPage() {
   const ctx = await requireActiveContext();
   if (!(await getPlatformSettings()).flowsEnabled) return <FeatureDisabled name="Automations" />;
   const manage = canManageOrg(ctx.role);
+  const activeChannelId = await getActiveChannelId();
 
-  const flows = await prisma.flow.findMany({
-    where: { orgId: ctx.orgId },
-    include: { _count: { select: { runs: true } } },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [flows, phones] = await Promise.all([
+    prisma.flow.findMany({
+      where: {
+        orgId: ctx.orgId,
+        ...(activeChannelId ? { OR: [{ phoneNumberId: null }, { phoneNumberId: activeChannelId }] } : {}),
+      },
+      include: { _count: { select: { runs: true } } },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.phoneNumber.findMany({
+      where: { account: { orgId: ctx.orgId } },
+      select: { id: true, displayNumber: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+  const channels = phones.map((p) => ({ id: p.id, label: p.displayNumber }));
+  const channelLabel = (id: string | null) =>
+    id ? channels.find((c) => c.id === id)?.label ?? "Unknown number" : "All channels";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -94,6 +110,12 @@ export default async function FlowsPage() {
                   {f._count.runs} run(s) · updated {timeAgo(f.updatedAt)}
                 </div>
               </Link>
+              {channels.length > 0 &&
+                (manage ? (
+                  <FlowChannelSelect flowId={f.id} current={f.phoneNumberId} channels={channels} />
+                ) : (
+                  <span className="rounded-pill bg-canvas px-2 py-0.5 text-xs text-sub">{channelLabel(f.phoneNumberId)}</span>
+                ))}
               <Link
                 href={`/flows/${f.id}`}
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"

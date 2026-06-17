@@ -47,6 +47,8 @@ export type EngineContext = {
   conversation: { id: string; status: string; windowExpiresAt: Date | null };
   contact: { id: string; waId: string; attributes: Record<string, unknown> };
   phoneNumberId: string;
+  /** The PhoneNumber row id (channel) this conversation belongs to. */
+  channelId?: string;
   accessToken: string; // already decrypted
   inboundText: string | undefined;
 };
@@ -89,9 +91,14 @@ export async function runFlowsForInbound(
     }
   }
 
-  // 2. No active run — match a published flow's trigger.
+  // 2. No active run — match a published flow's trigger. Only flows scoped to
+  // this conversation's channel (or all-channel flows where phoneNumberId is null).
   const flows = await prisma.flow.findMany({
-    where: { orgId: ctx.orgId, status: "PUBLISHED" },
+    where: {
+      orgId: ctx.orgId,
+      status: "PUBLISHED",
+      ...(ctx.channelId ? { OR: [{ phoneNumberId: null }, { phoneNumberId: ctx.channelId }] } : {}),
+    },
     include: {
       versions: {
         where: { publishedAt: { not: null } },
