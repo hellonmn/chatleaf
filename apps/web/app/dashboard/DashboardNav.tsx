@@ -10,6 +10,7 @@ import {
   Megaphone,
   LayoutTemplate,
   MessageCircle,
+  KanbanSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ const NAV: { href: string; label: string; icon: LucideIcon; exact?: boolean; fea
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
+  { href: "/dashboard/crm", label: "CRM", icon: KanbanSquare },
   { href: "/dashboard/broadcasts", label: "Broadcasts", icon: Megaphone, feature: "broadcasts" },
   { href: "/dashboard/flows", label: "Automations", icon: Workflow, feature: "flows" },
   { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate, feature: "templates" },

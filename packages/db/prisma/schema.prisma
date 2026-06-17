@@ -56,6 +56,8 @@ model Org {
   paymentLinks     PaymentLink[]
   invoices         Invoice[]
   wallet           Wallet?
+  pipelines        Pipeline[]
+  deals            Deal[]
 }
 
 model User {
@@ -412,6 +414,7 @@ model Contact {
   conversations Conversation[]
   flowRuns      FlowRun[]
   broadcastRecipients BroadcastRecipient[]
+  deals         Deal[]
 
   @@unique([orgId, waId])
   @@index([orgId])
@@ -436,6 +439,75 @@ model ContactTag {
   tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([contactId, tagId])
+}
+
+// ── CRM pipeline (deals move through configurable stages) ──────────────────
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+/// A sales pipeline (e.g. "Sales", "Onboarding"). Each org gets a default one.
+model Pipeline {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  isDefault Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stages PipelineStage[]
+  deals  Deal[]
+
+  @@index([orgId])
+}
+
+/// An ordered column in a pipeline. `won`/`lost` flag the closing stages.
+model PipelineStage {
+  id         String   @id @default(cuid())
+  orgId      String // denormalised for cheap org-scoped guards
+  pipelineId String
+  name       String
+  order      Int      @default(0)
+  color      String   @default("#0e7490")
+  won        Boolean  @default(false)
+  lost       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([pipelineId])
+}
+
+/// A deal/opportunity card that moves through a pipeline's stages. Optionally
+/// linked to a contact. `valuePaise` is the deal value in paise.
+model Deal {
+  id             String     @id @default(cuid())
+  orgId          String
+  pipelineId     String
+  stageId        String
+  contactId      String?
+  title          String
+  valuePaise     Int        @default(0)
+  status         DealStatus @default(OPEN)
+  note           String?
+  assignedUserId String?
+  order          Int        @default(0) // sort within a stage
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pipeline Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage    PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  contact  Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([pipelineId, stageId])
 }
 
 model Segment {

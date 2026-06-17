@@ -11,6 +11,7 @@ import { ChannelSwitcher, type ChannelOpt } from "@/components/ChannelSwitcher";
 const META: Record<string, { title: string; subtitle: string }> = {
   "/dashboard/inbox": { title: "Inbox", subtitle: "Your conversations in one place" },
   "/dashboard/contacts": { title: "Contacts", subtitle: "Your leads and customers" },
+  "/dashboard/crm": { title: "CRM", subtitle: "Track deals across your pipeline" },
   "/dashboard/flows": { title: "Automations", subtitle: "No-code chatbot flows that work 24/7" },
   "/dashboard/broadcasts": { title: "Broadcasts", subtitle: "Reach your audience with personalized campaigns" },
   "/dashboard/templates": { title: "Message templates", subtitle: "Reusable, pre-approved WhatsApp messages" },
