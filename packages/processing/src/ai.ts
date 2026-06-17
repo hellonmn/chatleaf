@@ -43,10 +43,13 @@ export async function generateAiReply(opts: {
     (opts.knowledge ? `\n\nKnowledge base (answer from this when relevant):\n${opts.knowledge}` : "") +
     "\n\nReply with only the message to send to the customer — no preamble, labels, or explanation.";
 
-  // The Messages API requires the first turn to be `user`; drop any leading
-  // assistant turns (e.g. a bot greeting) and collapse to {role, content}.
+  // The Messages API requires the first turn to be `user` AND the conversation
+  // to end with a `user` turn (no assistant prefill on this model). Drop leading
+  // assistant turns (e.g. a bot greeting) and trailing assistant turns (e.g. the
+  // agent's own last message when suggesting a reply), then collapse to {role, content}.
   const turns = [...opts.history];
   while (turns.length && turns[0]!.role !== "user") turns.shift();
+  while (turns.length && turns[turns.length - 1]!.role !== "user") turns.pop();
   const messages = turns.map((t) => ({ role: t.role, content: t.text }));
   if (messages.length === 0) {
     messages.push({ role: "user", content: "Hello" });
