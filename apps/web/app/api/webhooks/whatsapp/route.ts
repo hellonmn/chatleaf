@@ -4,6 +4,7 @@ import { verifyWebhookSignature } from "@watool/wa";
 import { getInboundQueue, isRedisConfigured, rateLimit } from "@watool/queue";
 import { processInboundJob } from "@watool/processing";
 import { logger, captureError } from "@watool/observability";
+import { getMetaWebhookConfig } from "@/lib/meta-config";
 
 // Webhooks need Node APIs (crypto, ioredis) and must never be statically cached.
 export const runtime = "nodejs";
@@ -29,13 +30,14 @@ function appSecretConfigured(secret: string | undefined): secret is string {
  * GET — Meta webhook verification handshake. Echo back `hub.challenge` iff the
  * verify token matches.
  */
-export function GET(req: Request) {
+export async function GET(req: Request) {
   const url = new URL(req.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+  const { verifyToken } = await getMetaWebhookConfig();
+  if (mode === "subscribe" && verifyToken && token === verifyToken) {
     return new Response(challenge ?? "", { status: 200 });
   }
   console.warn("[webhook] GET verify failed — token mismatch");
@@ -60,12 +62,13 @@ export async function POST(req: Request) {
   }
 
   const rawBody = await req.text();
-  const appSecret = process.env.META_APP_SECRET;
+  const metaCfg = await getMetaWebhookConfig();
+  const appSecret = metaCfg.appSecret ?? undefined;
   const signature = req.headers.get("x-hub-signature-256");
 
   // Signature handling. In dev we allow a bypass so the pipeline is testable
   // before the exact app secret is wired; in production it is always enforced.
-  const explicitSkip = process.env.META_SKIP_SIGNATURE_CHECK === "true";
+  const explicitSkip = metaCfg.skipSignatureCheck;
   const secretReady = appSecretConfigured(appSecret);
 
   if (!secretReady && !isDev) {

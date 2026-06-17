@@ -23,6 +23,7 @@ const TABS = [
   { id: "branding", label: "Branding" },
   { id: "payments", label: "Payments" },
   { id: "invoicing", label: "Invoicing" },
+  { id: "integrations", label: "Integrations" },
   { id: "features", label: "Features" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -165,6 +166,24 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
               <input name="invoicePrefix" defaultValue={settings.invoicePrefix} className={field} />
             </div>
           </div>
+        </section>
+
+        {/* Integrations (Meta / WhatsApp) */}
+        <section className={panel("integrations")}>
+          <h3 className="text-base font-bold text-ink">WhatsApp (Meta) webhook</h3>
+          <p className="-mt-1 text-sm text-sub">
+            Override the env vars. Paste the same verify token into Meta → WhatsApp →
+            Configuration, and your App Secret (Meta → App → Settings → Basic).
+          </p>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Webhook verify token</label>
+            <input name="metaVerifyToken" defaultValue={settings.metaVerifyToken ?? ""} placeholder="a long random string" className={field} />
+          </div>
+          <SecretInput name="metaAppSecret" label="App Secret" isSet={settings.metaAppSecretSet} />
+          <label className="flex items-center gap-2 text-sm font-medium text-ink">
+            <input type="checkbox" name="metaSkipSignatureCheck" defaultChecked={settings.metaSkipSignatureCheck} className="h-4 w-4 rounded border-line" />
+            Skip signature verification (testing only — not recommended in production)
+          </label>
         </section>
 
         {/* Features */}
