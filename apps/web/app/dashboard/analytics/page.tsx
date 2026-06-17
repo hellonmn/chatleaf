@@ -1,7 +1,8 @@
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveChannelId } from "@/lib/active-channel";
 import { Card } from "@/components/ui/Card";
-import { MessageSquare, CheckCheck, Eye, Timer, UserPlus, Users } from "lucide-react";
+import { MessageSquare, CheckCheck, Eye, Timer, UserPlus, Users, MessageCircle } from "lucide-react";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function dur(ms: number): string {
@@ -30,32 +31,42 @@ export default async function AnalyticsPage() {
   const since30 = new Date(now - 30 * 86_400_000);
   const since14 = new Date(now - 14 * 86_400_000);
 
+  // Scope every metric to the active channel (null = all channels).
+  const ch = await getActiveChannelId();
+  const channelName = ch
+    ? (await prisma.phoneNumber.findUnique({ where: { id: ch }, select: { displayNumber: true } }))?.displayNumber ?? "Unknown number"
+    : null;
+  const msgCh = ch ? { conversation: { phoneNumberId: ch } } : {};
+  const convCh = ch ? { phoneNumberId: ch } : {};
+  const contactCh = ch ? { conversations: { some: { phoneNumberId: ch } } } : {};
+  const flowCh = ch ? { OR: [{ phoneNumberId: null }, { phoneNumberId: ch }] } : {};
+
   const [
     outStatuses, volume, newContacts, activeConvos,
     members, flows, runStats, repliesRaw, convos,
   ] = await Promise.all([
     prisma.message.groupBy({
       by: ["status"],
-      where: { orgId, direction: "OUT", createdAt: { gte: since30 } },
+      where: { orgId, direction: "OUT", createdAt: { gte: since30 }, ...msgCh },
       _count: true,
     }),
     prisma.message.findMany({
-      where: { orgId, createdAt: { gte: since14 } },
+      where: { orgId, createdAt: { gte: since14 }, ...msgCh },
       select: { createdAt: true, direction: true },
       take: 20000,
     }),
-    prisma.contact.count({ where: { orgId, createdAt: { gte: since30 } } }),
-    prisma.conversation.count({ where: { orgId, status: { in: ["OPEN", "AGENT"] } } }),
+    prisma.contact.count({ where: { orgId, createdAt: { gte: since30 }, ...contactCh } }),
+    prisma.conversation.count({ where: { orgId, status: { in: ["OPEN", "AGENT"] }, ...convCh } }),
     prisma.membership.findMany({ where: { orgId }, include: { user: true } }),
-    prisma.flow.findMany({ where: { orgId }, select: { id: true, name: true, status: true } }),
-    prisma.flowRun.groupBy({ by: ["flowId", "status"], where: { orgId }, _count: true }),
+    prisma.flow.findMany({ where: { orgId, ...flowCh }, select: { id: true, name: true, status: true } }),
+    prisma.flowRun.groupBy({ by: ["flowId", "status"], where: { orgId, ...(ch ? { flow: flowCh } : {}) }, _count: true }),
     prisma.message.findMany({
-      where: { orgId, direction: "OUT", createdAt: { gte: since30 } },
+      where: { orgId, direction: "OUT", createdAt: { gte: since30 }, ...msgCh },
       select: { payload: true },
       take: 8000,
     }),
     prisma.conversation.findMany({
-      where: { orgId, lastMessageAt: { gte: since30 } },
+      where: { orgId, lastMessageAt: { gte: since30 }, ...convCh },
       select: {
         assignedUserId: true,
         messages: { select: { createdAt: true, direction: true, payload: true }, orderBy: { createdAt: "asc" }, take: 40 },
@@ -135,9 +146,16 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-ink">Analytics</h1>
-        <p className="mt-1 text-sm text-sub">Last 30 days · {ctx.orgName}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-ink">Analytics</h1>
+          <p className="mt-1 text-sm text-sub">Last 30 days · {ctx.orgName}</p>
+        </div>
+        {channelName && (
+          <span className="inline-flex items-center gap-1.5 rounded-pill bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#1da851]">
+            <MessageCircle className="h-3.5 w-3.5" /> {channelName}
+          </span>
+        )}
       </div>
 
       {/* Hero stats */}

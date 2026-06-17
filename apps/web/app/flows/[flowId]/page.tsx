@@ -39,6 +39,10 @@ export default async function FlowEditorPage({
     for (const n of g.data.nodes) if (n.type === "askQuestion") vars.add(n.data.variable);
   }
 
+  const channelLabel = flow.phoneNumberId
+    ? (await prisma.phoneNumber.findUnique({ where: { id: flow.phoneNumberId }, select: { displayNumber: true } }))?.displayNumber ?? "Unknown number"
+    : "All channels";
+
   return (
     <NodeFlowBuilder
       flowId={flow.id}
@@ -46,6 +50,7 @@ export default async function FlowEditorPage({
       status={flow.status}
       initialGraph={graph}
       knownVariables={[...vars].filter(Boolean).sort()}
+      channelLabel={channelLabel}
     />
   );
 }

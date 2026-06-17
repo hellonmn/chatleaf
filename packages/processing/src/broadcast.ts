@@ -58,19 +58,33 @@ export async function sendBroadcast(
   });
   if (!b) throw new Error("Broadcast not found");
 
-  const account = await prisma.whatsAppAccount.findFirst({
-    where: { orgId: b.orgId },
-    include: { phoneNumbers: true },
-  });
-  const phone = account?.phoneNumbers[0];
-  if (!account?.accessTokenEnc || !phone) {
+  // Sending number: the broadcast's chosen channel, else the first connected.
+  let pnMetaId: string | undefined; // Meta phone_number_id
+  let pnPk: string | undefined; // PhoneNumber row id
+  let tokenEnc: string | null | undefined;
+  if (b.phoneNumberId) {
+    const pn = await prisma.phoneNumber.findFirst({
+      where: { id: b.phoneNumberId, account: { orgId: b.orgId } },
+      include: { account: true },
+    });
+    if (pn) { pnMetaId = pn.phoneNumberId; pnPk = pn.id; tokenEnc = pn.account.accessTokenEnc; }
+  }
+  if (!pnMetaId) {
+    const account = await prisma.whatsAppAccount.findFirst({
+      where: { orgId: b.orgId },
+      include: { phoneNumbers: true },
+    });
+    const phone = account?.phoneNumbers[0];
+    if (phone && account) { pnMetaId = phone.phoneNumberId; pnPk = phone.id; tokenEnc = account.accessTokenEnc; }
+  }
+  if (!pnMetaId || !pnPk || !tokenEnc) {
     await prisma.broadcast.update({ where: { id: b.id }, data: { status: "FAILED" } });
     throw new Error("Connect a WhatsApp number first (Settings → WhatsApp).");
   }
 
   const client = createWhatsAppClient({
-    phoneNumberId: phone.phoneNumberId,
-    accessToken: decryptSecret(account.accessTokenEnc),
+    phoneNumberId: pnMetaId,
+    accessToken: decryptSecret(tokenEnc),
   });
 
   const filter = (b.segment?.filterJSON as AudienceFilter) ?? { optedInOnly: true };
@@ -84,12 +98,12 @@ export async function sendBroadcast(
   let failed = 0;
   for (const contact of contacts) {
     let convo = await prisma.conversation.findFirst({
-      where: { orgId: b.orgId, contactId: contact.id, phoneNumberId: phone.id, status: { not: "CLOSED" } },
+      where: { orgId: b.orgId, contactId: contact.id, phoneNumberId: pnPk, status: { not: "CLOSED" } },
       orderBy: { lastMessageAt: "desc" },
     });
     if (!convo) {
       convo = await prisma.conversation.create({
-        data: { orgId: b.orgId, contactId: contact.id, phoneNumberId: phone.id, status: "BOT", lastMessageAt: new Date() },
+        data: { orgId: b.orgId, contactId: contact.id, phoneNumberId: pnPk, status: "BOT", lastMessageAt: new Date() },
       });
     }
 

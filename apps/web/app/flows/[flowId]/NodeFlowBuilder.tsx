@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Zap, MessageSquare, HelpCircle, GitBranch, Settings2, Tag, Sparkles,
   Users, Clock, Octagon, Plus, Trash2, Check, Loader2, Maximize2, Minus, X,
-  MousePointer2, Wand2, MoveVertical, MoveHorizontal, type LucideIcon,
+  MousePointer2, Wand2, MoveVertical, MoveHorizontal, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import type { FlowGraph } from "@watool/types";
 import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
@@ -105,9 +105,9 @@ function summary(n: GNode): string {
 
 // ── component ───────────────────────────────────────────────────────────────────
 export function NodeFlowBuilder({
-  flowId, name, status, initialGraph, knownVariables,
+  flowId, name, status, initialGraph, knownVariables, channelLabel,
 }: {
-  flowId: string; name: string; status: string; initialGraph: FlowGraph; knownVariables: string[];
+  flowId: string; name: string; status: string; initialGraph: FlowGraph; knownVariables: string[]; channelLabel?: string;
 }) {
   const initial = useMemo(() => normalizeGraph(initialGraph), [initialGraph]);
   const [nodes, setNodes] = useState<GNode[]>(initial.nodes);
@@ -393,6 +393,11 @@ export function NodeFlowBuilder({
             {status === "PUBLISHED" ? "● Live" : "Draft"}
           </span>
         </div>
+        {channelLabel && (
+          <span className="hidden items-center gap-1.5 rounded-pill bg-[#25D366]/10 px-2.5 py-1 text-xs font-semibold text-[#1da851] sm:inline-flex" title="This flow runs on this channel">
+            <MessageCircle className="h-3.5 w-3.5" /> {channelLabel}
+          </span>
+        )}
         {msg && <span className={`text-xs font-medium ${msg.kind === "ok" ? "text-emerald-600" : "text-rose"}`}>{msg.text}</span>}
         <button
           onClick={() => { const nd = dir === "vertical" ? "horizontal" : "vertical"; setDir(nd); autoArrange(nd); }}

@@ -9,6 +9,7 @@ import { sendBroadcast, audienceWhere, type AudienceFilter } from "@watool/proce
 import { requireActiveContext } from "@/lib/session";
 import { startOfMonth } from "@/lib/usage";
 import { getPlanLimits } from "@/lib/plan-config";
+import { getActiveChannelId } from "@/lib/active-channel";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -68,6 +69,7 @@ export async function createBroadcastAction(formData: FormData): Promise<void> {
       orgId: ctx.orgId,
       templateId: template.id,
       segmentId: segment.id,
+      phoneNumberId: await getActiveChannelId(),
       status: "DRAFT",
     },
   });

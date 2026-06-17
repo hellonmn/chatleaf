@@ -598,11 +598,12 @@ enum BroadcastStatus {
 }
 
 model Broadcast {
-  id         String          @id @default(cuid())
-  orgId      String
-  templateId String
-  segmentId  String?
-  scheduleAt DateTime?
+  id            String          @id @default(cuid())
+  orgId         String
+  templateId    String
+  segmentId     String?
+  phoneNumberId String? // channel to send from (PhoneNumber id); null = first connected
+  scheduleAt    DateTime?
   status     BroadcastStatus @default(DRAFT)
   stats      Json            @default("{}")
   createdAt  DateTime        @default(now())
