@@ -7,7 +7,8 @@ import Link from "next/link";
 import {
   ArrowLeft, Zap, MessageSquare, HelpCircle, GitBranch, Settings2, Tag, Sparkles,
   Users, Clock, Octagon, Plus, Trash2, Check, Loader2, Maximize2, Minus, X,
-  MousePointer2, Wand2, MoveVertical, MoveHorizontal, MessageCircle, type LucideIcon,
+  MousePointer2, Wand2, MoveVertical, MoveHorizontal, MessageCircle, Briefcase,
+  ArrowRightLeft, type LucideIcon,
 } from "lucide-react";
 import type { FlowGraph } from "@watool/types";
 import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
@@ -15,7 +16,7 @@ import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
 // ── types ─────────────────────────────────────────────────────────────────────
 type Kind =
   | "trigger" | "sendMessage" | "askQuestion" | "condition" | "setAttribute"
-  | "addTag" | "aiReply" | "assignAgent" | "delay" | "end";
+  | "addTag" | "aiReply" | "createDeal" | "setDealStage" | "assignAgent" | "delay" | "end";
 
 type GNode = { id: string; type: Kind; position: { x: number; y: number }; data: any };
 type GEdge = { id: string; source: string; target: string; sourceHandle: string | null };
@@ -28,6 +29,8 @@ const META: Record<Kind, { label: string; icon: LucideIcon; color: string }> = {
   setAttribute: { label: "Set attribute", icon: Settings2, color: "#56a8d8" },
   addTag: { label: "Add tag", icon: Tag, color: "#34c08a" },
   aiReply: { label: "AI reply", icon: Sparkles, color: "#8366d6" },
+  createDeal: { label: "Create deal", icon: Briefcase, color: "#0e9f6e" },
+  setDealStage: { label: "Move deal stage", icon: ArrowRightLeft, color: "#0e9f6e" },
   assignAgent: { label: "Handoff to agent", icon: Users, color: "#f3a05a" },
   delay: { label: "Wait / delay", icon: Clock, color: "#97a1b0" },
   end: { label: "End", icon: Octagon, color: "#97a1b0" },
@@ -36,7 +39,7 @@ const META: Record<Kind, { label: string; icon: LucideIcon; color: string }> = {
 // not its own palette item.
 const PALETTE: Kind[] = [
   "sendMessage", "condition", "addTag", "setAttribute",
-  "aiReply", "assignAgent", "delay", "end",
+  "aiReply", "createDeal", "setDealStage", "assignAgent", "delay", "end",
 ];
 
 const NODE_W = 232;
@@ -67,6 +70,8 @@ function defaultData(kind: Kind): any {
     case "setAttribute": return { attribute: "key", value: "value" };
     case "addTag": return { tags: ["lead"] };
     case "aiReply": return { systemPrompt: "You are a helpful WhatsApp support assistant. Reply concisely.", knowledge: "", model: "", maxTokens: 512, saveToVariable: "" };
+    case "createDeal": return { pipelineId: "", stageId: "", title: "", value: "" };
+    case "setDealStage": return { pipelineId: "", stageId: "", createIfMissing: true };
     case "assignAgent": return { team: null, note: "" };
     case "delay": return { seconds: 60 };
     case "end": return {};
@@ -97,6 +102,8 @@ function summary(n: GNode): string {
     case "setAttribute": return `${d.attribute} = ${d.value}`;
     case "addTag": return (d.tags ?? []).join(", ");
     case "aiReply": return "Claude answers the customer";
+    case "createDeal": return `add deal${d.title ? `: ${d.title}` : ""} to CRM`;
+    case "setDealStage": return "move deal to a stage";
     case "assignAgent": return d.note || "Hand off to a human";
     case "delay": return `wait ${d.seconds}s`;
     case "end": return "stop the flow";
@@ -104,10 +111,12 @@ function summary(n: GNode): string {
 }
 
 // ── component ───────────────────────────────────────────────────────────────────
+export type PipelineOpt = { id: string; name: string; stages: { id: string; name: string }[] };
+
 export function NodeFlowBuilder({
-  flowId, name, status, initialGraph, knownVariables, channelLabel,
+  flowId, name, status, initialGraph, knownVariables, channelLabel, pipelines = [],
 }: {
-  flowId: string; name: string; status: string; initialGraph: FlowGraph; knownVariables: string[]; channelLabel?: string;
+  flowId: string; name: string; status: string; initialGraph: FlowGraph; knownVariables: string[]; channelLabel?: string; pipelines?: PipelineOpt[];
 }) {
   const initial = useMemo(() => normalizeGraph(initialGraph), [initialGraph]);
   const [nodes, setNodes] = useState<GNode[]>(initial.nodes);
@@ -544,6 +553,7 @@ export function NodeFlowBuilder({
                 <Config
                   node={selectedNode}
                   variables={variables}
+                  pipelines={pipelines}
                   onChange={(p) => patch(selectedNode.id, p)}
                   onToggleQuestion={(on) => setIsQuestion(selectedNode.id, on)}
                   onDelete={() => removeNode(selectedNode.id)}
@@ -693,9 +703,9 @@ const inp = "mt-1 w-full rounded-btn border border-line bg-white px-2.5 py-2 tex
 const lbl = "block text-xs font-semibold text-ink";
 
 function Config({
-  node, variables, onChange, onToggleQuestion, onDelete, onClose, onRemoveButtonEdges,
+  node, variables, pipelines, onChange, onToggleQuestion, onDelete, onClose, onRemoveButtonEdges,
 }: {
-  node: GNode; variables: string[]; onChange: (p: any) => void;
+  node: GNode; variables: string[]; pipelines: PipelineOpt[]; onChange: (p: any) => void;
   onToggleQuestion: (on: boolean) => void;
   onDelete: () => void; onClose: () => void;
   onRemoveButtonEdges: (buttonId: string) => void;
@@ -860,6 +870,54 @@ function Config({
           <div><label className={lbl}>Knowledge (optional)</label><textarea className={inp} rows={3} value={d.knowledge} onChange={(e) => onChange({ knowledge: e.target.value })} /></div>
         </>
       )}
+
+      {(node.type === "createDeal" || node.type === "setDealStage") && (() => {
+        const selectedPipeline = pipelines.find((p) => p.id === d.pipelineId) ?? pipelines[0];
+        const stages = selectedPipeline?.stages ?? [];
+        if (pipelines.length === 0) {
+          return <p className="text-xs text-sub">No CRM pipeline yet. Open <strong>CRM</strong> once to create the default pipeline, then come back.</p>;
+        }
+        return (
+          <>
+            <div>
+              <label className={lbl}>Pipeline</label>
+              <select className={inp} value={d.pipelineId || ""} onChange={(e) => onChange({ pipelineId: e.target.value, stageId: "" })}>
+                <option value="">Default pipeline</option>
+                {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Stage{node.type === "setDealStage" ? "" : " (optional)"}</label>
+              <select className={inp} value={d.stageId || ""} onChange={(e) => onChange({ stageId: e.target.value })}>
+                <option value="">{node.type === "setDealStage" ? "Select a stage…" : "First stage"}</option>
+                {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            {node.type === "createDeal" && (
+              <>
+                <div>
+                  <label className={lbl}>Deal title</label>
+                  <input className={inp} value={d.title ?? ""} onChange={(e) => onChange({ title: e.target.value })} placeholder="{{name}} — new enquiry" />
+                </div>
+                <div>
+                  <label className={lbl}>Value (₹, optional)</label>
+                  <input className={inp} value={d.value ?? ""} onChange={(e) => onChange({ value: e.target.value })} placeholder="5000 or {{budget}}" />
+                </div>
+                <p className="text-[10px] text-faint">Creates a deal for this contact. Use {"{{variable}}"} to insert collected answers; blank title uses the contact's name.</p>
+              </>
+            )}
+            {node.type === "setDealStage" && (
+              <label className="flex items-start gap-2.5 rounded-card border border-line bg-canvas/60 p-2.5">
+                <input type="checkbox" checked={d.createIfMissing !== false} onChange={(e) => onChange({ createIfMissing: e.target.checked })} className="mt-0.5 h-4 w-4 accent-brand" />
+                <span>
+                  <span className="block text-xs font-bold text-ink">Create a deal if none exists</span>
+                  <span className="block text-[11px] text-faint">Otherwise this step is skipped when the contact has no deal in the pipeline.</span>
+                </span>
+              </label>
+            )}
+          </>
+        );
+      })()}
 
       {node.type === "assignAgent" && (
         <div><label className={lbl}>Note for the agent</label><input className={inp} value={d.note ?? ""} onChange={(e) => onChange({ note: e.target.value })} /></div>

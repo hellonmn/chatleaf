@@ -347,6 +347,16 @@ async function execute(
         node = nextNode(graph, node.id);
         break;
       }
+      case "createDeal": {
+        await createDealNode(ctx, node, state);
+        node = nextNode(graph, node.id);
+        break;
+      }
+      case "setDealStage": {
+        await setDealStageNode(ctx, node, state);
+        node = nextNode(graph, node.id);
+        break;
+      }
       case "delay": {
         // MVP: timed waits need a scheduler (deferred). Continue immediately.
         node = nextNode(graph, node.id);
@@ -558,6 +568,100 @@ async function applyTags(orgId: string, contactId: string, tags: string[]): Prom
       where: { contactId_tagId: { contactId, tagId: tag.id } },
       create: { contactId, tagId: tag.id },
       update: {},
+    });
+  }
+}
+
+/** Resolve the target pipeline + stage for a CRM node. If `stageId` is set it
+ *  wins (and decides the pipeline); otherwise use the chosen/default pipeline's
+ *  first stage. Returns null if the org has no pipeline/stage. */
+async function resolveStage(
+  orgId: string,
+  pipelineId: string,
+  stageId: string,
+): Promise<{ pipelineId: string; stage: { id: string; won: boolean; lost: boolean } } | null> {
+  if (stageId) {
+    const stage = await prisma.pipelineStage.findFirst({ where: { id: stageId, orgId } });
+    return stage ? { pipelineId: stage.pipelineId, stage } : null;
+  }
+  const pipeline = pipelineId
+    ? await prisma.pipeline.findFirst({ where: { id: pipelineId, orgId } })
+    : await prisma.pipeline.findFirst({ where: { orgId }, orderBy: [{ isDefault: "desc" }, { order: "asc" }] });
+  if (!pipeline) return null;
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { pipelineId: pipeline.id },
+    orderBy: { order: "asc" },
+  });
+  return stage ? { pipelineId: pipeline.id, stage } : null;
+}
+
+function dealStatusFor(stage: { won: boolean; lost: boolean }): "OPEN" | "WON" | "LOST" {
+  return stage.won ? "WON" : stage.lost ? "LOST" : "OPEN";
+}
+
+function contactDisplayName(ctx: EngineContext): string {
+  const n = ctx.contact.attributes?.name;
+  return (typeof n === "string" && n.trim()) || ctx.contact.waId;
+}
+
+/** createDeal node: always creates a new deal for the current contact. */
+async function createDealNode(
+  ctx: EngineContext,
+  node: Extract<FlowNode, { type: "createDeal" }>,
+  state: Record<string, unknown>,
+): Promise<void> {
+  const res = await resolveStage(ctx.orgId, node.data.pipelineId, node.data.stageId);
+  if (!res) return; // org has no pipeline yet — skip silently
+
+  const title =
+    interpolate(node.data.title ?? "", state, ctx.contact.attributes).trim() || contactDisplayName(ctx);
+  const valStr = interpolate(node.data.value ?? "", state, ctx.contact.attributes).replace(/[^\d.]/g, "");
+  const valNum = Number(valStr);
+  const valuePaise = Number.isFinite(valNum) && valNum > 0 ? Math.round(valNum * 100) : 0;
+
+  await prisma.deal.create({
+    data: {
+      orgId: ctx.orgId,
+      pipelineId: res.pipelineId,
+      stageId: res.stage.id,
+      contactId: ctx.contact.id,
+      title,
+      valuePaise,
+      status: dealStatusFor(res.stage),
+    },
+  });
+}
+
+/** setDealStage node: move the contact's most-recent deal in the pipeline to the
+ *  target stage; create one there if none exists (when createIfMissing). */
+async function setDealStageNode(
+  ctx: EngineContext,
+  node: Extract<FlowNode, { type: "setDealStage" }>,
+  _state: Record<string, unknown>,
+): Promise<void> {
+  const res = await resolveStage(ctx.orgId, node.data.pipelineId, node.data.stageId);
+  if (!res) return;
+
+  const deal = await prisma.deal.findFirst({
+    where: { orgId: ctx.orgId, contactId: ctx.contact.id, pipelineId: res.pipelineId },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (deal) {
+    await prisma.deal.update({
+      where: { id: deal.id },
+      data: { stageId: res.stage.id, status: dealStatusFor(res.stage) },
+    });
+  } else if (node.data.createIfMissing) {
+    await prisma.deal.create({
+      data: {
+        orgId: ctx.orgId,
+        pipelineId: res.pipelineId,
+        stageId: res.stage.id,
+        contactId: ctx.contact.id,
+        title: contactDisplayName(ctx),
+        status: dealStatusFor(res.stage),
+      },
     });
   }
 }

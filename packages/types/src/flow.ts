@@ -19,6 +19,8 @@ export const NODE_TYPES = [
   "httpRequest",
   "assignAgent",
   "aiReply",
+  "createDeal",
+  "setDealStage",
   "delay",
   "end",
 ] as const;
@@ -122,6 +124,25 @@ const AiReplyData = z.object({
   saveToVariable: z.string().optional(),
 });
 
+/** Create a CRM deal for the current contact when the flow reaches this node. */
+const CreateDealData = z.object({
+  /** Target pipeline id; "" = the org's default pipeline. */
+  pipelineId: z.string().default(""),
+  /** Target stage id; "" = the pipeline's first stage. */
+  stageId: z.string().default(""),
+  /** Deal title; supports {{variables}}. "" = the contact's name/number. */
+  title: z.string().default(""),
+  /** Deal value (numeric, supports {{variables}}). "" = 0. */
+  value: z.string().default(""),
+});
+
+/** Move the contact's deal to a stage (creates one if none exists). */
+const SetDealStageData = z.object({
+  pipelineId: z.string().default(""),
+  stageId: z.string().min(1),
+  createIfMissing: z.boolean().default(true),
+});
+
 const EndData = z.object({});
 
 // ── Discriminated node union ────────────────────────────────────────────
@@ -138,6 +159,8 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   z.object({ ...baseNode, type: z.literal("httpRequest"), data: HttpRequestData }),
   z.object({ ...baseNode, type: z.literal("assignAgent"), data: AssignAgentData }),
   z.object({ ...baseNode, type: z.literal("aiReply"), data: AiReplyData }),
+  z.object({ ...baseNode, type: z.literal("createDeal"), data: CreateDealData }),
+  z.object({ ...baseNode, type: z.literal("setDealStage"), data: SetDealStageData }),
   z.object({ ...baseNode, type: z.literal("delay"), data: DelayData }),
   z.object({ ...baseNode, type: z.literal("end"), data: EndData }),
 ]);

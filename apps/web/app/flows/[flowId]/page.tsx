@@ -43,6 +43,18 @@ export default async function FlowEditorPage({
     ? (await prisma.phoneNumber.findUnique({ where: { id: flow.phoneNumberId }, select: { displayNumber: true } }))?.displayNumber ?? "Unknown number"
     : "All channels";
 
+  // Pipelines + stages so the CRM nodes (create deal / move stage) can offer pickers.
+  const pipelineRows = await prisma.pipeline.findMany({
+    where: { orgId: ctx.orgId },
+    orderBy: [{ isDefault: "desc" }, { order: "asc" }],
+    include: { stages: { orderBy: { order: "asc" }, select: { id: true, name: true } } },
+  });
+  const pipelines = pipelineRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    stages: p.stages.map((s) => ({ id: s.id, name: s.name })),
+  }));
+
   return (
     <NodeFlowBuilder
       flowId={flow.id}
@@ -51,6 +63,7 @@ export default async function FlowEditorPage({
       initialGraph={graph}
       knownVariables={[...vars].filter(Boolean).sort()}
       channelLabel={channelLabel}
+      pipelines={pipelines}
     />
   );
 }
