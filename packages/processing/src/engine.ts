@@ -6,6 +6,7 @@ import {
   type FlowGraph,
   type FlowNode,
 } from "@watool/types";
+import { publishCrmEvent } from "@watool/queue";
 import { generateAiReply, isAiConfigured, type AiTurn } from "./ai";
 
 /** If the org has auto-assign on, return the handleable member with the fewest
@@ -630,6 +631,7 @@ async function createDealNode(
       status: dealStatusFor(res.stage),
     },
   });
+  publishCrmEvent(ctx.orgId);
 }
 
 /** setDealStage node: move the contact's most-recent deal in the pipeline to the
@@ -652,6 +654,7 @@ async function setDealStageNode(
       where: { id: deal.id },
       data: { stageId: res.stage.id, status: dealStatusFor(res.stage) },
     });
+    publishCrmEvent(ctx.orgId);
   } else if (node.data.createIfMissing) {
     await prisma.deal.create({
       data: {
@@ -663,6 +666,7 @@ async function setDealStageNode(
         status: dealStatusFor(res.stage),
       },
     });
+    publishCrmEvent(ctx.orgId);
   }
 }
 

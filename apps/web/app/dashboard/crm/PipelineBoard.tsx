@@ -7,6 +7,7 @@ import {
   createDealAction, updateDealAction, deleteDealAction, moveDealAction,
   addStageAction, deleteStageAction, createPipelineAction, deletePipelineAction,
 } from "@/lib/actions/crm";
+import { CrmRealtime } from "./CrmRealtime";
 
 type Contact = { id: string; name: string | null; waId: string };
 type Deal = {
@@ -53,6 +54,7 @@ export function PipelineBoard({
 
   return (
     <div className="space-y-4">
+      <CrmRealtime />
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">

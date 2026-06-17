@@ -29,7 +29,7 @@ const g = globalThis as unknown as Glob;
 const bus = g.__clBus ?? (g.__clBus = new EventEmitter());
 bus.setMaxListeners(0);
 
-const evName = (orgId: string) => `inbox:${orgId}`;
+const evName = (topic: string, orgId: string) => `${topic}:${orgId}`;
 
 /** Lazily start the Redis subscriber (once per process) that re-broadcasts
  *  channel messages onto the local emitter. */
@@ -41,8 +41,8 @@ function ensureSubscriber(): void {
     sub.subscribe(CHANNEL).catch((e) => console.error("[realtime] subscribe failed:", e));
     sub.on("message", (_channel, message) => {
       try {
-        const { orgId, payload } = JSON.parse(message) as { orgId: string; payload?: string };
-        bus.emit(evName(orgId), payload ?? "refresh");
+        const { orgId, payload, topic } = JSON.parse(message) as { orgId: string; payload?: string; topic?: string };
+        bus.emit(evName(topic ?? "inbox", orgId), payload ?? "refresh");
       } catch {
         /* malformed */
       }
@@ -66,22 +66,28 @@ function publisher(): Redis | null {
   return g.__clPub ?? null;
 }
 
-/** Notify any open inboxes for an org. `payload` is "refresh" or a small JSON
- *  string (e.g. an inbound-message preview) the client can act on. */
-export function publishInboxEvent(orgId: string, payload: string = "refresh"): void {
+/** Publish an event on a topic for an org. `payload` is "refresh" or a small
+ *  JSON string the client can act on. */
+export function publishEvent(topic: string, orgId: string, payload: string = "refresh"): void {
   const pub = publisher();
   if (pub) {
     // Same-process subscribers receive it back via the Redis subscriber.
-    pub.publish(CHANNEL, JSON.stringify({ orgId, payload })).catch((e) => console.error("[realtime] publish failed:", e));
+    pub.publish(CHANNEL, JSON.stringify({ topic, orgId, payload })).catch((e) => console.error("[realtime] publish failed:", e));
   } else {
-    bus.emit(evName(orgId), payload); // single-process fallback
+    bus.emit(evName(topic, orgId), payload); // single-process fallback
   }
 }
 
-/** Subscribe to an org's inbox events. Returns an unsubscribe function. */
-export function subscribeInboxEvent(orgId: string, cb: (payload: string) => void): () => void {
+/** Subscribe to a topic's events for an org. Returns an unsubscribe function. */
+export function subscribeEvent(topic: string, orgId: string, cb: (payload: string) => void): () => void {
   ensureSubscriber();
-  const ev = evName(orgId);
+  const ev = evName(topic, orgId);
   bus.on(ev, cb);
   return () => bus.off(ev, cb);
 }
+
+// Inbox + CRM are thin wrappers over the topic-based bus.
+export const publishInboxEvent = (orgId: string, payload: string = "refresh") => publishEvent("inbox", orgId, payload);
+export const subscribeInboxEvent = (orgId: string, cb: (payload: string) => void) => subscribeEvent("inbox", orgId, cb);
+export const publishCrmEvent = (orgId: string, payload: string = "refresh") => publishEvent("crm", orgId, payload);
+export const subscribeCrmEvent = (orgId: string, cb: (payload: string) => void) => subscribeEvent("crm", orgId, cb);

@@ -5,10 +5,15 @@ import { z } from "zod";
 import { prisma } from "@watool/db";
 import { canManageOrg, canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { publishCrm } from "@/lib/realtime";
 
 export type CrmState = { error?: string; ok?: string } | undefined;
 
-const REVALIDATE = "/dashboard/crm";
+/** Revalidate the board route + push a realtime refresh to open boards. */
+function notifyCrm(orgId: string) {
+  revalidatePath("/dashboard/crm");
+  publishCrm(orgId);
+}
 
 // ── Pipelines ───────────────────────────────────────────────────────────────
 
@@ -32,7 +37,7 @@ export async function createPipelineAction(formData: FormData): Promise<void> {
       },
     },
   });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
 }
 
 export async function deletePipelineAction(formData: FormData): Promise<void> {
@@ -40,7 +45,7 @@ export async function deletePipelineAction(formData: FormData): Promise<void> {
   if (!canManageOrg(ctx.role)) return;
   const id = String(formData.get("pipelineId") ?? "");
   await prisma.pipeline.deleteMany({ where: { id, orgId: ctx.orgId } });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
 }
 
 // ── Stages ────────────────────────────────────────────────────────────────
@@ -58,7 +63,7 @@ export async function addStageAction(formData: FormData): Promise<void> {
   await prisma.pipelineStage.create({
     data: { orgId: ctx.orgId, pipelineId, name, color, order: (max._max.order ?? -1) + 1 },
   });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
 }
 
 /** Delete a stage. Blocked while it still holds deals, to avoid losing them. */
@@ -71,7 +76,7 @@ export async function deleteStageAction(_prev: CrmState, formData: FormData): Pr
   const deals = await prisma.deal.count({ where: { stageId, orgId: ctx.orgId } });
   if (deals > 0) return { error: "Move or delete this stage's deals first." };
   await prisma.pipelineStage.delete({ where: { id: stageId } });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
   return { ok: "Stage removed." };
 }
 
@@ -117,7 +122,7 @@ export async function createDealAction(_prev: CrmState, formData: FormData): Pro
       status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
     },
   });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
   return { ok: "Deal added." };
 }
 
@@ -138,7 +143,7 @@ export async function moveDealAction(dealId: string, stageId: string): Promise<{
       status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
     },
   });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
   return { ok: true };
 }
 
@@ -160,7 +165,7 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
       note,
     },
   });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
   return { ok: "Saved." };
 }
 
@@ -169,5 +174,5 @@ export async function deleteDealAction(formData: FormData): Promise<void> {
   if (!canHandleConversations(ctx.role)) return;
   const id = String(formData.get("dealId") ?? "");
   await prisma.deal.deleteMany({ where: { id, orgId: ctx.orgId } });
-  revalidatePath(REVALIDATE);
+  notifyCrm(ctx.orgId);
 }

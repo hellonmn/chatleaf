@@ -2,7 +2,11 @@ import { Queue, type ConnectionOptions } from "bullmq";
 import { createRedisConnection } from "./connection";
 
 export { createRedisConnection } from "./connection";
-export { publishInboxEvent, subscribeInboxEvent } from "./realtime";
+export {
+  publishInboxEvent, subscribeInboxEvent,
+  publishCrmEvent, subscribeCrmEvent,
+  publishEvent, subscribeEvent,
+} from "./realtime";
 export { rateLimit, type RateLimitResult } from "./ratelimit";
 export { Worker, type Job, type ConnectionOptions } from "bullmq";
 
