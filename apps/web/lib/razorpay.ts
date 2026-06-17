@@ -182,6 +182,50 @@ export async function createRazorpayPaymentLink(opts: {
   return (await res.json()) as RazorpayPaymentLink;
 }
 
+type RazorpayOrder = { id: string; amount: number; currency: string; status: string };
+
+/** Create a one-time Razorpay Order (amount in paise) — used for wallet top-ups
+ *  and any one-off charge that isn't a recurring subscription. */
+export async function createRazorpayOrder(opts: {
+  amountPaise: number;
+  notes?: Record<string, string>;
+}): Promise<RazorpayOrder> {
+  const res = await fetch(`${API}/orders`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: await authHeader() },
+    body: JSON.stringify({
+      amount: opts.amountPaise,
+      currency: "INR",
+      notes: opts.notes ?? {},
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Razorpay createOrder failed (${res.status}): ${await res.text()}`);
+  }
+  return (await res.json()) as RazorpayOrder;
+}
+
+/** Verify a one-time Order Checkout success. Razorpay signs
+ *  `order_id + "|" + payment_id` with the key secret. */
+export async function verifyOrderPayment(opts: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+}): Promise<boolean> {
+  const { keySecret } = await getRazorpayCreds();
+  if (!keySecret) return false;
+  const expected = createHmac("sha256", keySecret)
+    .update(`${opts.orderId}|${opts.paymentId}`)
+    .digest("hex");
+  try {
+    const a = Buffer.from(expected);
+    const b = Buffer.from(opts.signature);
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 /** Cancel a subscription immediately. */
 export async function cancelRazorpaySubscription(subscriptionId: string): Promise<void> {
   const res = await fetch(`${API}/subscriptions/${subscriptionId}/cancel`, {

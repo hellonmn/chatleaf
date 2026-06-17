@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck, UserCog } from "lucide-react";
+import { ChevronDown, LogOut, Settings, CreditCard, BarChart3, Bell, MessageSquareText, Clock, QrCode, Sparkles, ShieldCheck, UserCog, Wallet } from "lucide-react";
 import { signOutAction } from "@/lib/actions/signout";
 import { ChannelSwitcher, type ChannelOpt } from "@/components/ChannelSwitcher";
 
@@ -18,6 +18,7 @@ const META: Record<string, { title: string; subtitle: string }> = {
   "/dashboard/settings/whatsapp": { title: "Channels", subtitle: "Connect and manage your messaging channels" },
   "/dashboard/team": { title: "Team", subtitle: "Who has access to this workspace" },
   "/dashboard/settings/billing": { title: "Billing & usage", subtitle: "Your plan, limits, and usage" },
+  "/dashboard/settings/wallet": { title: "Wallet", subtitle: "Add funds and track usage spend" },
 };
 
 function greeting(name: string | null): { title: string; subtitle: string } {
@@ -202,6 +203,13 @@ export function Topbar({
                 className="flex items-center gap-2.5 px-4 py-2 text-sm text-sub hover:bg-canvas"
               >
                 <CreditCard className="h-4 w-4" /> Billing &amp; usage
+              </Link>
+              <Link
+                href="/dashboard/settings/wallet"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-sub hover:bg-canvas"
+              >
+                <Wallet className="h-4 w-4" /> Wallet
               </Link>
             </div>
             {isPlatformAdmin && (

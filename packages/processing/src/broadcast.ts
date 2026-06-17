@@ -1,5 +1,6 @@
 import { prisma, Prisma } from "@watool/db";
 import { createWhatsAppClient, decryptSecret } from "@watool/wa";
+import { getMessageCostPaise, getBalancePaise, debitWallet, creditWallet } from "./wallet";
 
 /**
  * Send a broadcast: resolve the audience, then send the (approved) template to
@@ -51,7 +52,7 @@ export function audienceWhere(
 
 export async function sendBroadcast(
   broadcastId: string,
-): Promise<{ total: number; sent: number; failed: number }> {
+): Promise<{ total: number; sent: number; failed: number; skipped: number }> {
   const b = await prisma.broadcast.findUnique({
     where: { id: broadcastId },
     include: { template: true, segment: true },
@@ -92,10 +93,21 @@ export async function sendBroadcast(
     where: audienceWhere(b.orgId, filter),
   });
 
+  // Per-message wallet cost (0 when wallet billing is disabled platform-wide).
+  const unitCostPaise = await getMessageCostPaise(b.template.category);
+  if (unitCostPaise > 0) {
+    const balance = await getBalancePaise(b.orgId);
+    if (balance < unitCostPaise) {
+      await prisma.broadcast.update({ where: { id: b.id }, data: { status: "FAILED" } });
+      throw new Error("Insufficient wallet balance — add funds to send this broadcast.");
+    }
+  }
+
   await prisma.broadcast.update({ where: { id: b.id }, data: { status: "RUNNING" } });
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0; // ran out of wallet funds mid-send
   for (const contact of contacts) {
     let convo = await prisma.conversation.findFirst({
       where: { orgId: b.orgId, contactId: contact.id, phoneNumberId: pnPk, status: { not: "CLOSED" } },
@@ -121,6 +133,23 @@ export async function sendBroadcast(
       },
     });
 
+    // Charge the wallet up-front (refunded below if the send fails). If funds ran
+    // out, stop here — remaining contacts stay unsent.
+    if (unitCostPaise > 0) {
+      const debit = await debitWallet(b.orgId, unitCostPaise, {
+        kind: "message",
+        note: `Broadcast template "${b.template.name}" → ${contact.waId}`,
+        refType: "broadcast",
+        refId: b.id,
+      });
+      if (!debit.ok) {
+        await prisma.message.update({ where: { id: msg.id }, data: { status: "FAILED", errorJSON: { message: "Insufficient wallet balance" } } });
+        await prisma.broadcastRecipient.update({ where: { id: recipient.id }, data: { status: "failed" } });
+        skipped++;
+        break;
+      }
+    }
+
     try {
       const r = await client.sendTemplate(contact.waId, b.template.name, b.template.language);
       await prisma.message.update({ where: { id: msg.id }, data: { waMessageId: r.waMessageId, status: "SENT" } });
@@ -132,6 +161,15 @@ export async function sendBroadcast(
       await prisma.message.update({ where: { id: msg.id }, data: { status: "FAILED", errorJSON: { message } } });
       await prisma.broadcastRecipient.update({ where: { id: recipient.id }, data: { status: "failed" } });
       failed++;
+      // Don't charge for a message Meta rejected — refund the up-front debit.
+      if (unitCostPaise > 0) {
+        await creditWallet(b.orgId, unitCostPaise, {
+          kind: "refund",
+          note: `Refund — failed send to ${contact.waId}`,
+          refType: "broadcast",
+          refId: b.id,
+        });
+      }
     }
   }
 
@@ -139,9 +177,9 @@ export async function sendBroadcast(
     where: { id: b.id },
     data: {
       status: "COMPLETED",
-      stats: { total: contacts.length, sent, failed } as Prisma.InputJsonValue,
+      stats: { total: contacts.length, sent, failed, skipped } as Prisma.InputJsonValue,
     },
   });
 
-  return { total: contacts.length, sent, failed };
+  return { total: contacts.length, sent, failed, skipped };
 }

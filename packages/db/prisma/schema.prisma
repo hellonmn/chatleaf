@@ -55,6 +55,7 @@ model Org {
   subscription     Subscription?
   paymentLinks     PaymentLink[]
   invoices         Invoice[]
+  wallet           Wallet?
 }
 
 model User {
@@ -89,6 +90,48 @@ model Subscription {
   updatedAt              DateTime  @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+/// Prepaid wallet (one per org). Holds a balance in paise that the org tops up
+/// via Razorpay and that usage (WhatsApp messages, AI, etc.) draws down. This is
+/// the platform-managed "add funds" model — see WalletTransaction for the ledger.
+model Wallet {
+  id                       String   @id @default(cuid())
+  orgId                    String   @unique
+  balancePaise             Int      @default(0) // current balance, in paise
+  currency                 String   @default("INR")
+  lowBalanceThresholdPaise Int      @default(10000) // warn below ₹100 by default
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  org          Org                 @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+/// Immutable ledger entry for every wallet credit/debit. `balanceAfterPaise` is
+/// the wallet balance right after this entry, so history is self-describing.
+model WalletTransaction {
+  id                String        @id @default(cuid())
+  walletId          String
+  orgId             String // denormalised for cheap org-scoped queries
+  type              WalletTxnType
+  amountPaise       Int // always positive; `type` says credit or debit
+  balanceAfterPaise Int
+  kind              String // topup | message | adjustment | refund | bonus
+  note              String?
+  refType           String? // message | broadcast | razorpay | admin
+  refId             String?
+  razorpayPaymentId String?
+  createdAt         DateTime      @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+enum WalletTxnType {
+  CREDIT
+  DEBIT
 }
 
 /// Admin-editable pricing + limits per plan tier. One row per Plan enum value;
@@ -182,6 +225,15 @@ model PlatformSettings {
   webhookForwardUrl         String?
   webhookForwardHeaderName  String?
   webhookForwardHeaderValue String?
+  // Prepaid-wallet billing (reseller model). When disabled, sends are never
+  // charged to the wallet. Per-category rates are in paise per message; the
+  // markup is applied on top of the base rate the platform pays Meta.
+  walletBillingEnabled Boolean @default(false)
+  walletMarkupPercent  Int     @default(0)
+  rateMarketingPaise   Int     @default(0)
+  rateUtilityPaise     Int     @default(0)
+  rateAuthPaise        Int     @default(0)
+  rateServicePaise     Int     @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

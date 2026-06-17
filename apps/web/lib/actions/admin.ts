@@ -149,6 +149,10 @@ export async function savePlatformSettingsAction(
     return { error: "Enter a valid support email." };
   }
   const on = (name: string) => formData.get(name) === "on";
+  const intField = (name: string, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER) => {
+    const n = Math.floor(Number(formData.get(name)));
+    return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+  };
   const gstPercentRaw = Number(formData.get("gstPercent"));
 
   const fwdUrl = String(formData.get("webhookForwardUrl") ?? "").trim();
@@ -192,6 +196,12 @@ export async function savePlatformSettingsAction(
     webhookForwardUrl: String(formData.get("webhookForwardUrl") ?? "").trim() || null,
     webhookForwardHeaderName: String(formData.get("webhookForwardHeaderName") ?? "").trim() || null,
     webhookForwardHeaderValue: String(formData.get("webhookForwardHeaderValue") ?? "").trim() || null,
+    walletBillingEnabled: on("walletBillingEnabled"),
+    walletMarkupPercent: intField("walletMarkupPercent", 0, 0, 1000),
+    rateMarketingPaise: intField("rateMarketingPaise", 0, 0),
+    rateUtilityPaise: intField("rateUtilityPaise", 0, 0),
+    rateAuthPaise: intField("rateAuthPaise", 0, 0),
+    rateServicePaise: intField("rateServicePaise", 0, 0),
   };
 
   await prisma.platformSettings.upsert({

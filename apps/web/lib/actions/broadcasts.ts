@@ -113,7 +113,8 @@ export async function sendBroadcastAction(
     const r = await sendBroadcast(broadcastId);
     revalidatePath(`/dashboard/broadcasts/${broadcastId}`);
     revalidatePath("/dashboard/broadcasts");
-    return { ok: `Sent to ${r.sent} contact(s)${r.failed ? `, ${r.failed} failed` : ""}.` };
+    const skipped = "skipped" in r && r.skipped ? `, ${r.skipped} skipped (wallet out of funds)` : "";
+    return { ok: `Sent to ${r.sent} contact(s)${r.failed ? `, ${r.failed} failed` : ""}${skipped}.` };
   } catch (err) {
     revalidatePath(`/dashboard/broadcasts/${broadcastId}`);
     return { error: err instanceof Error ? err.message : "Failed to send." };

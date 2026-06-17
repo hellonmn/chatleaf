@@ -35,6 +35,12 @@ export type PlatformSettings = {
   webhookForwardUrl: string | null;
   webhookForwardHeaderName: string | null;
   webhookForwardHeaderValue: string | null;
+  walletBillingEnabled: boolean;
+  walletMarkupPercent: number;
+  rateMarketingPaise: number;
+  rateUtilityPaise: number;
+  rateAuthPaise: number;
+  rateServicePaise: number;
 };
 
 export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
@@ -66,6 +72,12 @@ export const PLATFORM_SETTINGS_DEFAULTS: PlatformSettings = {
   webhookForwardUrl: null,
   webhookForwardHeaderName: null,
   webhookForwardHeaderValue: null,
+  walletBillingEnabled: false,
+  walletMarkupPercent: 0,
+  rateMarketingPaise: 0,
+  rateUtilityPaise: 0,
+  rateAuthPaise: 0,
+  rateServicePaise: 0,
 };
 
 export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => {
@@ -100,5 +112,11 @@ export const getPlatformSettings = cache(async (): Promise<PlatformSettings> => 
     webhookForwardUrl: row.webhookForwardUrl,
     webhookForwardHeaderName: row.webhookForwardHeaderName,
     webhookForwardHeaderValue: row.webhookForwardHeaderValue,
+    walletBillingEnabled: row.walletBillingEnabled,
+    walletMarkupPercent: row.walletMarkupPercent,
+    rateMarketingPaise: row.rateMarketingPaise,
+    rateUtilityPaise: row.rateUtilityPaise,
+    rateAuthPaise: row.rateAuthPaise,
+    rateServicePaise: row.rateServicePaise,
   };
 });

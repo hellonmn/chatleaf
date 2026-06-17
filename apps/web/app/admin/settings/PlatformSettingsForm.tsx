@@ -24,6 +24,7 @@ const TABS = [
   { id: "payments", label: "Payments" },
   { id: "invoicing", label: "Invoicing" },
   { id: "integrations", label: "Integrations" },
+  { id: "wallet", label: "Wallet billing" },
   { id: "features", label: "Features" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -222,6 +223,47 @@ export function PlatformSettingsForm({ settings }: { settings: PlatformSettings 
               (or in addition to) the Meta signature. Leave blank to forward only Meta&apos;s headers.
             </p>
           </div>
+        </section>
+
+        {/* Wallet billing */}
+        <section className={panel("wallet")}>
+          <h3 className="text-base font-bold text-ink">Prepaid wallet billing</h3>
+          <p className="-mt-1 text-sm text-sub">
+            When on, each sent message is charged to the org&apos;s wallet at the rate
+            below. <strong>Only enable if Meta bills you</strong> (Solution Partner +
+            credit-line sharing) — otherwise the business is charged twice.
+          </p>
+          <label className="flex items-center gap-2 text-sm font-medium text-ink">
+            <input type="checkbox" name="walletBillingEnabled" defaultChecked={settings.walletBillingEnabled} className="h-4 w-4 rounded border-line" />
+            Charge messages to the wallet
+          </label>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Markup % (added on top of the base rate)</label>
+            <input type="number" name="walletMarkupPercent" min={0} max={1000} defaultValue={settings.walletMarkupPercent} className={field} />
+          </div>
+          <div className="mt-1 text-xs font-bold uppercase tracking-wide text-faint">Base rate per message (in paise — 100 paise = ₹1)</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-sub">Marketing</label>
+              <input type="number" name="rateMarketingPaise" min={0} defaultValue={settings.rateMarketingPaise} className={field} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-sub">Utility</label>
+              <input type="number" name="rateUtilityPaise" min={0} defaultValue={settings.rateUtilityPaise} className={field} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-sub">Authentication</label>
+              <input type="number" name="rateAuthPaise" min={0} defaultValue={settings.rateAuthPaise} className={field} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-sub">Service</label>
+              <input type="number" name="rateServicePaise" min={0} defaultValue={settings.rateServicePaise} className={field} />
+            </div>
+          </div>
+          <p className="text-xs text-faint">
+            Example: Marketing base <code className="rounded bg-canvas px-1">79</code> paise + 20% markup ≈ 95 paise (₹0.95) per
+            marketing message. Set 0 to not charge a category. Session/service replies are usually free on WhatsApp.
+          </p>
         </section>
 
         {/* Features */}
