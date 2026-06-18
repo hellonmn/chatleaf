@@ -157,12 +157,29 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
   const valueInr = Number(formData.get("valueInr") ?? 0);
   const note = String(formData.get("note") ?? "").trim() || null;
   if (!title) return { error: "Title can't be empty." };
+
+  // Assignee: "" clears it; otherwise the user must be a member of this org.
+  const assigneeRaw = String(formData.get("assignedUserId") ?? "").trim();
+  let assignedUserId: string | null = deal.assignedUserId;
+  if (formData.has("assignedUserId")) {
+    if (!assigneeRaw) {
+      assignedUserId = null;
+    } else {
+      const member = await prisma.membership.findFirst({
+        where: { orgId: ctx.orgId, userId: assigneeRaw },
+        select: { userId: true },
+      });
+      assignedUserId = member ? member.userId : deal.assignedUserId;
+    }
+  }
+
   await prisma.deal.update({
     where: { id: dealId },
     data: {
       title,
       valuePaise: Number.isFinite(valueInr) && valueInr >= 0 ? Math.round(valueInr * 100) : deal.valuePaise,
       note,
+      assignedUserId,
     },
   });
   notifyCrm(ctx.orgId);

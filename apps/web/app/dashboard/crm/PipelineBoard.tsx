@@ -10,24 +10,50 @@ import {
 import { CrmRealtime } from "./CrmRealtime";
 
 type Contact = { id: string; name: string | null; waId: string };
+type Member = { id: string; name: string | null; email: string };
 type Deal = {
   id: string; title: string; valuePaise: number; status: string; note: string | null;
+  assignedUserId: string | null;
   contact: Contact | null;
 };
 type Stage = { id: string; name: string; color: string; won: boolean; lost: boolean; deals: Deal[] };
 
 const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const contactLabel = (c: Contact | null) => (c ? c.name || c.waId : null);
+const memberName = (m: Member) => m.name || m.email;
+const initials = (s: string) =>
+  s.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+// Deterministic avatar colour from a user id (no Math.random — stable across renders).
+const AVATAR_COLORS = ["#0e7490", "#8366d6", "#0e9f6e", "#e0698a", "#f3a05a", "#2bb3e0"];
+const avatarColor = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+};
+
+function Avatar({ name, id, size = 20 }: { name: string; id: string; size?: number }) {
+  return (
+    <span
+      title={name}
+      className="inline-grid shrink-0 place-items-center rounded-full font-bold text-white"
+      style={{ width: size, height: size, background: avatarColor(id), fontSize: size * 0.42 }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
 
 export function PipelineBoard({
-  pipelines, activePipelineId, stages, contacts, canManage,
+  pipelines, activePipelineId, stages, contacts, members, canManage,
 }: {
   pipelines: { id: string; name: string }[];
   activePipelineId: string;
   stages: Stage[];
   contacts: Contact[];
+  members: Member[];
   canManage: boolean;
 }) {
+  const memberById = new Map(members.map((m) => [m.id, m]));
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -154,11 +180,22 @@ export function PipelineBoard({
                         {contactLabel(deal.contact) && (
                           <div className="mt-0.5 truncate text-xs text-sub">{contactLabel(deal.contact)}</div>
                         )}
-                        {deal.valuePaise > 0 && (
-                          <div className="mt-1 inline-block rounded-pill bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-brand-ink">
-                            {inr(deal.valuePaise)}
-                          </div>
-                        )}
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {deal.valuePaise > 0 && (
+                            <span className="rounded-pill bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-brand-ink">
+                              {inr(deal.valuePaise)}
+                            </span>
+                          )}
+                          {deal.assignedUserId && memberById.has(deal.assignedUserId) && (
+                            <span className="ml-auto">
+                              <Avatar
+                                id={deal.assignedUserId}
+                                name={memberName(memberById.get(deal.assignedUserId)!)}
+                                size={20}
+                              />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -190,6 +227,7 @@ export function PipelineBoard({
       {editing && (
         <EditDealModal
           deal={editing}
+          members={members}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); router.refresh(); }}
         />
@@ -265,7 +303,7 @@ function AddDealForm({
   );
 }
 
-function EditDealModal({ deal, onClose, onSaved }: { deal: Deal; onClose: () => void; onSaved: () => void }) {
+function EditDealModal({ deal, members, onClose, onSaved }: { deal: Deal; members: Member[]; onClose: () => void; onSaved: () => void }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -295,6 +333,15 @@ function EditDealModal({ deal, onClose, onSaved }: { deal: Deal; onClose: () => 
           <div>
             <label className="mb-1 block text-xs font-semibold text-sub">Value (₹)</label>
             <input name="valueInr" type="number" min={0} defaultValue={deal.valuePaise / 100} className="w-full rounded-btn border border-line px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Assign to</label>
+            <select name="assignedUserId" defaultValue={deal.assignedUserId ?? ""} className="w-full rounded-btn border border-line px-3 py-2 text-sm">
+              <option value="">Unassigned</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name || m.email}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-sub">Note</label>

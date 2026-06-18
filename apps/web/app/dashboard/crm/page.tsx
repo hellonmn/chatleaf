@@ -21,7 +21,7 @@ export default async function CrmPage({
   const activePipeline =
     pipelines.find((p) => p.id === sp.pipeline) ?? pipelines.find((p) => p.id === def.id) ?? def;
 
-  const [stages, contacts] = await Promise.all([
+  const [stages, contacts, memberships] = await Promise.all([
     getPipelineBoard(ctx.orgId, activePipeline.id),
     prisma.contact.findMany({
       where: { orgId: ctx.orgId },
@@ -29,7 +29,16 @@ export default async function CrmPage({
       orderBy: { updatedAt: "desc" },
       take: 300,
     }),
+    prisma.membership.findMany({
+      where: { orgId: ctx.orgId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    }),
   ]);
+  const members = memberships.map((m) => ({
+    id: m.user.id,
+    name: m.user.name,
+    email: m.user.email,
+  }));
 
   return (
     <PipelineBoard
@@ -47,10 +56,12 @@ export default async function CrmPage({
           valuePaise: d.valuePaise,
           status: d.status,
           note: d.note,
+          assignedUserId: d.assignedUserId,
           contact: d.contact ? { id: d.contact.id, name: d.contact.name, waId: d.contact.waId } : null,
         })),
       }))}
       contacts={contacts.map((c) => ({ id: c.id, name: c.name, waId: c.waId }))}
+      members={members}
       canManage={canManageOrg(ctx.role)}
     />
   );
