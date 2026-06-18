@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Trash2, Settings2, Check, Loader2, GripVertical } from "lucide-react";
+import Link from "next/link";
+import { Plus, X, Trash2, Settings2, Check, Loader2, GripVertical, MessageCircle } from "lucide-react";
 import {
   createDealAction, updateDealAction, deleteDealAction, moveDealAction,
   addStageAction, deleteStageAction, createPipelineAction, deletePipelineAction,
@@ -59,7 +60,7 @@ function Avatar({ name, id, size = 20 }: { name: string; id: string; size?: numb
 }
 
 export function PipelineBoard({
-  pipelines, activePipelineId, stages, contacts, members, currentUserId, canManage,
+  pipelines, activePipelineId, stages, contacts, members, currentUserId, contactConversations, canManage,
 }: {
   pipelines: { id: string; name: string }[];
   activePipelineId: string;
@@ -67,6 +68,7 @@ export function PipelineBoard({
   contacts: Contact[];
   members: Member[];
   currentUserId: string;
+  contactConversations: Record<string, string>;
   canManage: boolean;
 }) {
   const memberById = new Map(members.map((m) => [m.id, m]));
@@ -213,19 +215,31 @@ export function PipelineBoard({
 
               {/* Cards */}
               <div className="flex min-h-[60px] flex-1 flex-col gap-2 px-2 pb-2">
-                {visibleDeals.map((deal) => (
+                {visibleDeals.map((deal) => {
+                  const convoId = deal.contact ? contactConversations[deal.contact.id] : undefined;
+                  return (
                   <div
                     key={deal.id}
                     draggable
                     onDragStart={() => setDragId(deal.id)}
                     onDragEnd={() => setDragId(null)}
                     onClick={() => setEditing(deal)}
-                    className={`group cursor-pointer rounded-card border border-line bg-white p-2.5 shadow-sm transition-shadow hover:shadow-card ${
+                    className={`group relative cursor-pointer rounded-card border border-line bg-white p-2.5 shadow-sm transition-shadow hover:shadow-card ${
                       dragId === deal.id ? "opacity-50" : ""
                     }`}
                   >
                     <div className="flex items-start gap-1.5">
                       <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint opacity-0 group-hover:opacity-100" />
+                      {convoId && (
+                        <Link
+                          href={`/dashboard/inbox/${convoId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Open chat"
+                          className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-md text-faint opacity-0 hover:bg-canvas hover:text-brand group-hover:opacity-100"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Link>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold text-ink">{deal.title}</div>
                         {contactLabel(deal.contact) && (
@@ -265,7 +279,8 @@ export function PipelineBoard({
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Add deal */}
                 {adding === stage.id ? (
@@ -294,6 +309,7 @@ export function PipelineBoard({
         <EditDealModal
           deal={editing}
           members={members}
+          conversationId={editing.contact ? contactConversations[editing.contact.id] : undefined}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); router.refresh(); }}
         />
@@ -379,7 +395,7 @@ function AddDealForm({
   );
 }
 
-function EditDealModal({ deal, members, onClose, onSaved }: { deal: Deal; members: Member[]; onClose: () => void; onSaved: () => void }) {
+function EditDealModal({ deal, members, conversationId, onClose, onSaved }: { deal: Deal; members: Member[]; conversationId?: string; onClose: () => void; onSaved: () => void }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -390,7 +406,19 @@ function EditDealModal({ deal, members, onClose, onSaved }: { deal: Deal; member
           <h3 className="text-base font-bold text-ink">Edit deal</h3>
           <button onClick={onClose} className="text-faint hover:text-ink"><X className="h-5 w-5" /></button>
         </div>
-        {contactLabel(deal.contact) && <p className="mt-0.5 text-sm text-sub">{contactLabel(deal.contact)}</p>}
+        {contactLabel(deal.contact) && (
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <p className="truncate text-sm text-sub">{contactLabel(deal.contact)}</p>
+            {conversationId && (
+              <Link
+                href={`/dashboard/inbox/${conversationId}`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-btn bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-ink hover:bg-brand/15"
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> Open chat
+              </Link>
+            )}
+          </div>
+        )}
         <form
           action={(fd) => {
             fd.set("dealId", deal.id);

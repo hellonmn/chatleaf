@@ -40,6 +40,23 @@ export default async function CrmPage({
     email: m.user.email,
   }));
 
+  // Map each deal's contact → its most recent conversation, so a deal can open
+  // the chat. Contacts with no conversation yet simply won't get a link.
+  const dealContactIds = [
+    ...new Set(stages.flatMap((s) => s.deals).map((d) => d.contactId).filter((x): x is string => !!x)),
+  ];
+  const convos = dealContactIds.length
+    ? await prisma.conversation.findMany({
+        where: { orgId: ctx.orgId, contactId: { in: dealContactIds } },
+        orderBy: { lastMessageAt: "desc" },
+        select: { id: true, contactId: true },
+      })
+    : [];
+  const contactConversations: Record<string, string> = {};
+  for (const c of convos) {
+    if (c.contactId && !contactConversations[c.contactId]) contactConversations[c.contactId] = c.id;
+  }
+
   return (
     <PipelineBoard
       pipelines={pipelines.map((p) => ({ id: p.id, name: p.name }))}
@@ -64,6 +81,7 @@ export default async function CrmPage({
       contacts={contacts.map((c) => ({ id: c.id, name: c.name, waId: c.waId }))}
       members={members}
       currentUserId={ctx.userId}
+      contactConversations={contactConversations}
       canManage={canManageOrg(ctx.role)}
     />
   );
