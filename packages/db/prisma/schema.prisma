@@ -497,6 +497,7 @@ model Deal {
   status         DealStatus @default(OPEN)
   note           String?
   assignedUserId String?
+  dueDate        DateTime?
   order          Int        @default(0) // sort within a stage
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt

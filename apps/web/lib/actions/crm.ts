@@ -174,6 +174,17 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
     }
   }
 
+  // Due date: "" clears it; an invalid date is ignored (keeps current).
+  let dueDate: Date | null = deal.dueDate;
+  if (formData.has("dueDate")) {
+    const raw = String(formData.get("dueDate") ?? "").trim();
+    if (!raw) dueDate = null;
+    else {
+      const d = new Date(raw);
+      if (!Number.isNaN(d.getTime())) dueDate = d;
+    }
+  }
+
   await prisma.deal.update({
     where: { id: dealId },
     data: {
@@ -181,6 +192,7 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
       valuePaise: Number.isFinite(valueInr) && valueInr >= 0 ? Math.round(valueInr * 100) : deal.valuePaise,
       note,
       assignedUserId,
+      dueDate,
     },
   });
   notifyCrm(ctx.orgId);

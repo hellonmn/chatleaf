@@ -57,11 +57,13 @@ export default async function CrmPage({
           status: d.status,
           note: d.note,
           assignedUserId: d.assignedUserId,
+          dueDate: d.dueDate ? d.dueDate.toISOString() : null,
           contact: d.contact ? { id: d.contact.id, name: d.contact.name, waId: d.contact.waId } : null,
         })),
       }))}
       contacts={contacts.map((c) => ({ id: c.id, name: c.name, waId: c.waId }))}
       members={members}
+      currentUserId={ctx.userId}
       canManage={canManageOrg(ctx.role)}
     />
   );

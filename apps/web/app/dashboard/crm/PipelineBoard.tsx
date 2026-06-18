@@ -14,12 +14,27 @@ type Member = { id: string; name: string | null; email: string };
 type Deal = {
   id: string; title: string; valuePaise: number; status: string; note: string | null;
   assignedUserId: string | null;
+  dueDate: string | null;
   contact: Contact | null;
 };
 type Stage = { id: string; name: string; color: string; won: boolean; lost: boolean; deals: Deal[] };
 
 const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const contactLabel = (c: Contact | null) => (c ? c.name || c.waId : null);
+
+/** Days from today to a due date (negative = overdue). null if no date. */
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const due = new Date(iso);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  const a = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
+  const b = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((a - b) / 86_400_000);
+}
+const dueLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+const ymd = (iso: string) => new Date(iso).toISOString().slice(0, 10); // for <input type=date>
 const memberName = (m: Member) => m.name || m.email;
 const initials = (s: string) =>
   s.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
@@ -44,16 +59,21 @@ function Avatar({ name, id, size = 20 }: { name: string; id: string; size?: numb
 }
 
 export function PipelineBoard({
-  pipelines, activePipelineId, stages, contacts, members, canManage,
+  pipelines, activePipelineId, stages, contacts, members, currentUserId, canManage,
 }: {
   pipelines: { id: string; name: string }[];
   activePipelineId: string;
   stages: Stage[];
   contacts: Contact[];
   members: Member[];
+  currentUserId: string;
   canManage: boolean;
 }) {
   const memberById = new Map(members.map((m) => [m.id, m]));
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all"); // all | me | <userId>
+  const matchesFilter = (deal: Deal) =>
+    assigneeFilter === "all" ||
+    (assigneeFilter === "me" ? deal.assignedUserId === currentUserId : deal.assignedUserId === assigneeFilter);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -64,6 +84,16 @@ export function PipelineBoard({
 
   const totalValue = stages.reduce((s, st) => s + st.deals.reduce((a, d) => a + d.valuePaise, 0), 0);
   const totalDeals = stages.reduce((s, st) => s + st.deals.length, 0);
+
+  // Analytics — computed from the full (unfiltered) pipeline.
+  const allDeals = stages.flatMap((s) => s.deals);
+  const openDeals = allDeals.filter((d) => d.status === "OPEN");
+  const openValue = openDeals.reduce((a, d) => a + d.valuePaise, 0);
+  const wonDeals = allDeals.filter((d) => d.status === "WON");
+  const wonValue = wonDeals.reduce((a, d) => a + d.valuePaise, 0);
+  const lostCount = allDeals.filter((d) => d.status === "LOST").length;
+  const closed = wonDeals.length + lostCount;
+  const winRate = closed > 0 ? Math.round((wonDeals.length / closed) * 100) : null;
 
   function switchPipeline(id: string) {
     router.push(`/dashboard/crm?pipeline=${id}`);
@@ -96,16 +126,36 @@ export function PipelineBoard({
           <span className="text-sm text-sub">{totalDeals} deals · {inr(totalValue)}</span>
           {pending && <Loader2 className="h-4 w-4 animate-spin text-faint" />}
         </div>
-        {canManage && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="rounded-btn border border-line bg-white px-3 py-1.5 text-sm font-semibold text-sub"
+            title="Filter by assignee"
+          >
+            <option value="all">All assignees</option>
+            <option value="me">My deals</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>{memberName(m)}</option>
+            ))}
+          </select>
+          {canManage && (
             <button
               onClick={() => setManaging((m) => !m)}
               className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas"
             >
               <Settings2 className="h-4 w-4" /> Manage
             </button>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
+
+      {/* Analytics strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Open deals" value={String(openDeals.length)} sub={inr(openValue)} />
+        <Stat label="Won" value={String(wonDeals.length)} sub={inr(wonValue)} />
+        <Stat label="Win rate" value={winRate == null ? "—" : `${winRate}%`} sub={`${closed} closed`} />
+        <Stat label="Pipeline value" value={inr(openValue)} sub={`${openDeals.length} open`} />
       </div>
 
       {/* Manage panel */}
@@ -138,7 +188,8 @@ export function PipelineBoard({
       {/* Board */}
       <div className="flex gap-3 overflow-x-auto pb-3">
         {stages.map((stage) => {
-          const stageValue = stage.deals.reduce((a, d) => a + d.valuePaise, 0);
+          const visibleDeals = stage.deals.filter(matchesFilter);
+          const stageValue = visibleDeals.reduce((a, d) => a + d.valuePaise, 0);
           return (
             <div
               key={stage.id}
@@ -153,7 +204,7 @@ export function PipelineBoard({
               <div className="flex items-center gap-2 px-3 py-2.5">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: stage.color }} />
                 <span className="text-sm font-bold text-ink">{stage.name}</span>
-                <span className="text-xs text-faint">{stage.deals.length}</span>
+                <span className="text-xs text-faint">{visibleDeals.length}</span>
                 <span className="ml-auto text-xs font-semibold text-sub">{inr(stageValue)}</span>
                 {managing && canManage && (
                   <DeleteStageButton stageId={stage.id} />
@@ -162,7 +213,7 @@ export function PipelineBoard({
 
               {/* Cards */}
               <div className="flex min-h-[60px] flex-1 flex-col gap-2 px-2 pb-2">
-                {stage.deals.map((deal) => (
+                {visibleDeals.map((deal) => (
                   <div
                     key={deal.id}
                     draggable
@@ -186,6 +237,21 @@ export function PipelineBoard({
                               {inr(deal.valuePaise)}
                             </span>
                           )}
+                          {deal.dueDate && deal.status === "OPEN" && (() => {
+                            const dleft = daysUntil(deal.dueDate);
+                            const overdue = dleft != null && dleft < 0;
+                            const soon = dleft != null && dleft >= 0 && dleft <= 2;
+                            return (
+                              <span
+                                className={`rounded-pill px-2 py-0.5 text-[11px] font-semibold ${
+                                  overdue ? "bg-rose/15 text-rose" : soon ? "bg-warm/15 text-[#c47a2e]" : "bg-canvas text-sub"
+                                }`}
+                                title={overdue ? "Overdue" : "Due date"}
+                              >
+                                {dueLabel(deal.dueDate)}
+                              </span>
+                            );
+                          })()}
                           {deal.assignedUserId && memberById.has(deal.assignedUserId) && (
                             <span className="ml-auto">
                               <Avatar
@@ -232,6 +298,16 @@ export function PipelineBoard({
           onSaved={() => { setEditing(null); router.refresh(); }}
         />
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-card border border-line bg-white p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-faint">{label}</div>
+      <div className="mt-0.5 text-xl font-extrabold text-ink">{value}</div>
+      {sub && <div className="text-[11px] text-faint">{sub}</div>}
     </div>
   );
 }
@@ -342,6 +418,10 @@ function EditDealModal({ deal, members, onClose, onSaved }: { deal: Deal; member
                 <option key={m.id} value={m.id}>{m.name || m.email}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-sub">Due date</label>
+            <input name="dueDate" type="date" defaultValue={deal.dueDate ? ymd(deal.dueDate) : ""} className="w-full rounded-btn border border-line px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-sub">Note</label>
