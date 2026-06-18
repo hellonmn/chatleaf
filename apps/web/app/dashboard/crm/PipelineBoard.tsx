@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, X, Trash2, Settings2, Check, Loader2, GripVertical, MessageCircle } from "lucide-react";
 import {
   createDealAction, updateDealAction, deleteDealAction, moveDealAction,
   addStageAction, deleteStageAction, createPipelineAction, deletePipelineAction,
+  addDealNoteAction, getDealActivityAction, type DealActivityItem,
 } from "@/lib/actions/crm";
 import { CrmRealtime } from "./CrmRealtime";
 
@@ -401,7 +402,7 @@ function EditDealModal({ deal, members, conversationId, onClose, onSaved }: { de
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-card bg-white p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-card bg-white p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-ink">Edit deal</h3>
           <button onClick={onClose} className="text-faint hover:text-ink"><X className="h-5 w-5" /></button>
@@ -476,7 +477,76 @@ function EditDealModal({ deal, members, conversationId, onClose, onSaved }: { de
             </button>
           </div>
         </form>
+
+        <DealTimeline dealId={deal.id} />
       </div>
+    </div>
+  );
+}
+
+const ACTIVITY_DOT: Record<string, string> = {
+  created: "#0e9f6e", stage_changed: "#0e7490", assigned: "#8366d6",
+  value_changed: "#f3a05a", note: "#97a1b0", won: "#10b981", lost: "#ef4444",
+};
+
+function timeAgoShort(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function DealTimeline({ dealId }: { dealId: string }) {
+  const [items, setItems] = useState<DealActivityItem[] | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const load = () => getDealActivityAction(dealId).then(setItems);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [dealId]);
+
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-faint">Activity</h4>
+
+      <form
+        action={(fd) => {
+          fd.set("dealId", dealId);
+          const ta = document.getElementById(`note-${dealId}`) as HTMLInputElement | null;
+          startTransition(async () => {
+            await addDealNoteAction(undefined, fd);
+            if (ta) ta.value = "";
+            await load();
+          });
+        }}
+        className="mb-3 flex items-center gap-2"
+      >
+        <input id={`note-${dealId}`} name="text" placeholder="Add a note…" className="flex-1 rounded-btn border border-line px-2.5 py-1.5 text-sm outline-none focus:border-brand" />
+        <button disabled={pending} className="rounded-btn bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-60">
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Post"}
+        </button>
+      </form>
+
+      {items === null ? (
+        <p className="text-xs text-faint">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-faint">No activity yet.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {items.map((a) => (
+            <li key={a.id} className="flex gap-2.5">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: ACTIVITY_DOT[a.type] ?? "#97a1b0" }} />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-ink">{a.text}</div>
+                <div className="text-[11px] text-faint">
+                  {a.actor ? `${a.actor} · ` : ""}{timeAgoShort(a.createdAt)}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

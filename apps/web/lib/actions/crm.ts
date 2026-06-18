@@ -6,7 +6,7 @@ import { prisma } from "@watool/db";
 import { canManageOrg, canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { publishCrm } from "@/lib/realtime";
-import { ensureDefaultPipeline } from "@/lib/crm";
+import { ensureDefaultPipeline, logDealActivity } from "@/lib/crm";
 
 export type CrmState = { error?: string; ok?: string } | undefined;
 
@@ -112,7 +112,7 @@ export async function createDealAction(_prev: CrmState, formData: FormData): Pro
     if (!c) return { error: "Contact not found." };
   }
 
-  await prisma.deal.create({
+  const created = await prisma.deal.create({
     data: {
       orgId: ctx.orgId,
       pipelineId,
@@ -123,6 +123,7 @@ export async function createDealAction(_prev: CrmState, formData: FormData): Pro
       status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
     },
   });
+  await logDealActivity(ctx.orgId, created.id, "created", `Created in ${stage.name}`, ctx.userId);
   notifyCrm(ctx.orgId);
   return { ok: "Deal added." };
 }
@@ -136,6 +137,8 @@ export async function moveDealAction(dealId: string, stageId: string): Promise<{
     prisma.pipelineStage.findFirst({ where: { id: stageId, orgId: ctx.orgId } }),
   ]);
   if (!deal || !stage) return { ok: false, error: "Not found." };
+  if (deal.stageId === stageId) return { ok: true }; // no-op (dropped on same stage)
+  const fromStage = await prisma.pipelineStage.findUnique({ where: { id: deal.stageId }, select: { name: true } });
   await prisma.deal.update({
     where: { id: dealId },
     data: {
@@ -144,6 +147,14 @@ export async function moveDealAction(dealId: string, stageId: string): Promise<{
       status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
     },
   });
+  const verb = stage.won ? "Won" : stage.lost ? "Lost" : "stage_changed";
+  await logDealActivity(
+    ctx.orgId,
+    dealId,
+    stage.won ? "won" : stage.lost ? "lost" : "stage_changed",
+    stage.won || stage.lost ? `Marked ${verb} (${stage.name})` : `Moved ${fromStage?.name ?? "?"} → ${stage.name}`,
+    ctx.userId,
+  );
   notifyCrm(ctx.orgId);
   return { ok: true };
 }
@@ -185,16 +196,25 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
     }
   }
 
+  const newValuePaise = Number.isFinite(valueInr) && valueInr >= 0 ? Math.round(valueInr * 100) : deal.valuePaise;
+
   await prisma.deal.update({
     where: { id: dealId },
-    data: {
-      title,
-      valuePaise: Number.isFinite(valueInr) && valueInr >= 0 ? Math.round(valueInr * 100) : deal.valuePaise,
-      note,
-      assignedUserId,
-      dueDate,
-    },
+    data: { title, valuePaise: newValuePaise, note, assignedUserId, dueDate },
   });
+
+  // Timeline: record assignment + value changes.
+  if (assignedUserId !== deal.assignedUserId) {
+    if (assignedUserId) {
+      const u = await prisma.user.findUnique({ where: { id: assignedUserId }, select: { name: true, email: true } });
+      await logDealActivity(ctx.orgId, dealId, "assigned", `Assigned to ${u?.name || u?.email || "a teammate"}`, ctx.userId);
+    } else {
+      await logDealActivity(ctx.orgId, dealId, "assigned", "Unassigned", ctx.userId);
+    }
+  }
+  if (newValuePaise !== deal.valuePaise) {
+    await logDealActivity(ctx.orgId, dealId, "value_changed", `Value set to ₹${(newValuePaise / 100).toLocaleString("en-IN")}`, ctx.userId);
+  }
   notifyCrm(ctx.orgId);
   return { ok: "Saved." };
 }
@@ -219,7 +239,7 @@ export async function quickAddDealAction(_prev: CrmState, formData: FormData): P
   });
   if (!stage) return { error: "Pipeline has no stages yet." };
 
-  await prisma.deal.create({
+  const created = await prisma.deal.create({
     data: {
       orgId: ctx.orgId,
       pipelineId: pipeline.id,
@@ -230,6 +250,7 @@ export async function quickAddDealAction(_prev: CrmState, formData: FormData): P
       status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
     },
   });
+  await logDealActivity(ctx.orgId, created.id, "created", "Created from the inbox", ctx.userId);
   notifyCrm(ctx.orgId);
   return { ok: "Added to CRM." };
 }
@@ -240,4 +261,45 @@ export async function deleteDealAction(formData: FormData): Promise<void> {
   const id = String(formData.get("dealId") ?? "");
   await prisma.deal.deleteMany({ where: { id, orgId: ctx.orgId } });
   notifyCrm(ctx.orgId);
+}
+
+/** Post a free-text note to a deal's timeline. */
+export async function addDealNoteAction(_prev: CrmState, formData: FormData): Promise<CrmState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return { error: "No permission." };
+  const dealId = String(formData.get("dealId") ?? "");
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return { error: "Write a note." };
+  const deal = await prisma.deal.findFirst({ where: { id: dealId, orgId: ctx.orgId }, select: { id: true } });
+  if (!deal) return { error: "Deal not found." };
+  await logDealActivity(ctx.orgId, dealId, "note", text.slice(0, 1000), ctx.userId);
+  notifyCrm(ctx.orgId);
+  return { ok: "Note added." };
+}
+
+export type DealActivityItem = { id: string; type: string; text: string; actor: string | null; createdAt: string };
+
+/** Fetch a deal's activity timeline (newest first), with actor names resolved. */
+export async function getDealActivityAction(dealId: string): Promise<DealActivityItem[]> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return [];
+  const owns = await prisma.deal.findFirst({ where: { id: dealId, orgId: ctx.orgId }, select: { id: true } });
+  if (!owns) return [];
+  const rows = await prisma.dealActivity.findMany({
+    where: { dealId, orgId: ctx.orgId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  const actorIds = [...new Set(rows.map((r) => r.actorId).filter((x): x is string => !!x))];
+  const users = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, email: true } })
+    : [];
+  const nameById = new Map(users.map((u) => [u.id, u.name || u.email]));
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    text: r.text,
+    actor: r.actorId ? nameById.get(r.actorId) ?? null : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

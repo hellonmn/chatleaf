@@ -502,13 +502,30 @@ model Deal {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  pipeline Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  stage    PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  contact  Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  org        Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage      PipelineStage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  contact    Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activities DealActivity[]
 
   @@index([orgId])
   @@index([pipelineId, stageId])
+}
+
+/// Chronological history for a deal: created, stage moves, assignment, value
+/// changes, and free-text notes. `actorId` is null for system/flow events.
+model DealActivity {
+  id        String   @id @default(cuid())
+  orgId     String
+  dealId    String
+  type      String // created | stage_changed | assigned | value_changed | note | won | lost
+  text      String
+  actorId   String? // user who did it; null = flow/system
+  createdAt DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
 }
 
 model Segment {

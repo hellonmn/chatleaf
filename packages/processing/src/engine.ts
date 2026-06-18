@@ -580,7 +580,7 @@ async function resolveStage(
   orgId: string,
   pipelineId: string,
   stageId: string,
-): Promise<{ pipelineId: string; stage: { id: string; won: boolean; lost: boolean } } | null> {
+): Promise<{ pipelineId: string; stage: { id: string; name: string; won: boolean; lost: boolean } } | null> {
   if (stageId) {
     const stage = await prisma.pipelineStage.findFirst({ where: { id: stageId, orgId } });
     return stage ? { pipelineId: stage.pipelineId, stage } : null;
@@ -620,7 +620,7 @@ async function createDealNode(
   const valNum = Number(valStr);
   const valuePaise = Number.isFinite(valNum) && valNum > 0 ? Math.round(valNum * 100) : 0;
 
-  await prisma.deal.create({
+  const created = await prisma.deal.create({
     data: {
       orgId: ctx.orgId,
       pipelineId: res.pipelineId,
@@ -630,6 +630,9 @@ async function createDealNode(
       valuePaise,
       status: dealStatusFor(res.stage),
     },
+  });
+  await prisma.dealActivity.create({
+    data: { orgId: ctx.orgId, dealId: created.id, type: "created", text: `Created by a flow in ${res.stage.name}` },
   });
   publishCrmEvent(ctx.orgId);
 }
@@ -650,13 +653,17 @@ async function setDealStageNode(
   });
 
   if (deal) {
+    if (deal.stageId === res.stage.id) return; // already there
     await prisma.deal.update({
       where: { id: deal.id },
       data: { stageId: res.stage.id, status: dealStatusFor(res.stage) },
     });
+    await prisma.dealActivity.create({
+      data: { orgId: ctx.orgId, dealId: deal.id, type: "stage_changed", text: `Moved to ${res.stage.name} by a flow` },
+    });
     publishCrmEvent(ctx.orgId);
   } else if (node.data.createIfMissing) {
-    await prisma.deal.create({
+    const created = await prisma.deal.create({
       data: {
         orgId: ctx.orgId,
         pipelineId: res.pipelineId,
@@ -665,6 +672,9 @@ async function setDealStageNode(
         title: contactDisplayName(ctx),
         status: dealStatusFor(res.stage),
       },
+    });
+    await prisma.dealActivity.create({
+      data: { orgId: ctx.orgId, dealId: created.id, type: "created", text: `Created by a flow in ${res.stage.name}` },
     });
     publishCrmEvent(ctx.orgId);
   }

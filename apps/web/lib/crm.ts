@@ -5,6 +5,23 @@ import { prisma } from "@watool/db";
  * move through them. Each org auto-gets a default Sales pipeline on first use.
  */
 
+/** Append an entry to a deal's activity timeline. Best-effort — never throws. */
+export async function logDealActivity(
+  orgId: string,
+  dealId: string,
+  type: string,
+  text: string,
+  actorId?: string | null,
+): Promise<void> {
+  try {
+    await prisma.dealActivity.create({
+      data: { orgId, dealId, type, text, actorId: actorId ?? null },
+    });
+  } catch (e) {
+    console.error("[crm] logDealActivity failed:", e);
+  }
+}
+
 export const DEFAULT_PIPELINE_STAGES: { name: string; color: string; won?: boolean; lost?: boolean }[] = [
   { name: "New Lead", color: "#64748b" },
   { name: "Contacted", color: "#0ea5e9" },
