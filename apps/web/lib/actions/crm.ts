@@ -6,6 +6,7 @@ import { prisma } from "@watool/db";
 import { canManageOrg, canHandleConversations } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
 import { publishCrm } from "@/lib/realtime";
+import { ensureDefaultPipeline } from "@/lib/crm";
 
 export type CrmState = { error?: string; ok?: string } | undefined;
 
@@ -184,6 +185,41 @@ export async function updateDealAction(_prev: CrmState, formData: FormData): Pro
   });
   notifyCrm(ctx.orgId);
   return { ok: "Saved." };
+}
+
+/** Quick "add to CRM" from the inbox/contact panel: creates a deal for the
+ *  contact in the default pipeline's first stage. No pipeline/stage picker. */
+export async function quickAddDealAction(_prev: CrmState, formData: FormData): Promise<CrmState> {
+  const ctx = await requireActiveContext();
+  if (!canHandleConversations(ctx.role)) return { error: "No permission." };
+  const contactId = String(formData.get("contactId") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const valueInr = Number(formData.get("valueInr") ?? 0);
+  if (!title) return { error: "Enter a deal title." };
+
+  const contact = await prisma.contact.findFirst({ where: { id: contactId, orgId: ctx.orgId }, select: { id: true } });
+  if (!contact) return { error: "Contact not found." };
+
+  const pipeline = await ensureDefaultPipeline(ctx.orgId);
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { pipelineId: pipeline.id },
+    orderBy: { order: "asc" },
+  });
+  if (!stage) return { error: "Pipeline has no stages yet." };
+
+  await prisma.deal.create({
+    data: {
+      orgId: ctx.orgId,
+      pipelineId: pipeline.id,
+      stageId: stage.id,
+      contactId,
+      title,
+      valuePaise: Number.isFinite(valueInr) && valueInr > 0 ? Math.round(valueInr * 100) : 0,
+      status: stage.won ? "WON" : stage.lost ? "LOST" : "OPEN",
+    },
+  });
+  notifyCrm(ctx.orgId);
+  return { ok: "Added to CRM." };
 }
 
 export async function deleteDealAction(formData: FormData): Promise<void> {

@@ -44,6 +44,21 @@ export default async function ConversationPage({
     take: 50,
   });
 
+  // The contact's CRM deals (for the panel's Deals section).
+  const dealRows = await prisma.deal.findMany({
+    where: { orgId: ctx.orgId, contactId: convo.contactId },
+    orderBy: { updatedAt: "desc" },
+    include: { stage: { select: { name: true, color: true } } },
+    take: 10,
+  });
+  const deals = dealRows.map((d) => ({
+    id: d.id,
+    title: d.title,
+    valuePaise: d.valuePaise,
+    stageName: d.stage.name,
+    stageColor: d.stage.color,
+  }));
+
   const memberRows = await prisma.membership.findMany({
     where: { orgId: ctx.orgId },
     include: { user: { select: { name: true, email: true } } },
@@ -115,6 +130,7 @@ export default async function ConversationPage({
         conversationId={convo.id}
         assignedUserId={convo.assignedUserId}
         members={members}
+        deals={deals}
       />
     </div>
   );

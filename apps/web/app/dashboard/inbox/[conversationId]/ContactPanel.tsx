@@ -5,6 +5,10 @@ import { ContactTagForm } from "@/components/ContactTagForm";
 import { avatarColor } from "@/lib/avatar";
 import { NotesForm } from "./NotesForm";
 import { AssignControl } from "./AssignControl";
+import { QuickAddDeal } from "./QuickAddDeal";
+
+const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+type PanelDeal = { id: string; title: string; valuePaise: number; stageName: string; stageColor: string };
 
 const STAGE_PILL: Record<string, string> = {
   NEW: "bg-canvas text-sub",
@@ -37,11 +41,13 @@ export function ContactPanel({
   conversationId,
   assignedUserId,
   members,
+  deals,
 }: {
   contact: PanelContact;
   conversationId: string;
   assignedUserId: string | null;
   members: { id: string; name: string }[];
+  deals: PanelDeal[];
 }) {
   const name = contact.name ?? contact.phone ?? contact.waId;
   const color = avatarColor(name + contact.waId);
@@ -79,6 +85,27 @@ export function ContactPanel({
         <span className={`rounded-pill px-2.5 py-0.5 text-xs font-semibold ${STAGE_PILL[contact.stage] ?? STAGE_PILL.NEW}`}>
           {contact.stage.toLowerCase()} lead
         </span>
+      </Section>
+
+      <Section title="Deals">
+        <div className="space-y-2">
+          {deals.length === 0 && <p className="text-xs text-faint">No deals yet.</p>}
+          {deals.map((d) => (
+            <Link
+              key={d.id}
+              href="/dashboard/crm"
+              className="flex items-center gap-2 rounded-card border border-line px-2.5 py-1.5 hover:bg-canvas"
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.stageColor }} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-ink">{d.title}</span>
+                <span className="block text-[10px] text-faint">{d.stageName}</span>
+              </span>
+              {d.valuePaise > 0 && <span className="shrink-0 text-[11px] font-bold text-brand-ink">{inr(d.valuePaise)}</span>}
+            </Link>
+          ))}
+          <QuickAddDeal contactId={contact.id} defaultTitle={name} />
+        </div>
       </Section>
 
       <Section title="Tags">
