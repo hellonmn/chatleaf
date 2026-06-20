@@ -13,6 +13,7 @@ import {
 } from "@watool/wa";
 import { canManageOrg } from "@watool/types";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveAccount } from "@/lib/active-channel";
 
 export type ActionState = { error?: string; ok?: string } | undefined;
 
@@ -45,9 +46,9 @@ export async function syncTemplatesAction(
     return { error: "Only owners and admins can sync templates." };
   }
 
-  const account = await prisma.whatsAppAccount.findFirst({
-    where: { orgId: ctx.orgId },
-  });
+  // Sync the ACTIVE channel's WABA (not just the first one) so each number's
+  // templates stay separate.
+  const account = await getActiveAccount(ctx.orgId);
   if (!account?.accessTokenEnc) {
     return { error: "Connect WhatsApp first (Settings → WhatsApp)." };
   }
@@ -65,14 +66,15 @@ export async function syncTemplatesAction(
   for (const t of templates) {
     await prisma.template.upsert({
       where: {
-        orgId_name_language: {
-          orgId: ctx.orgId,
+        whatsAppAccountId_name_language: {
+          whatsAppAccountId: account.id,
           name: t.name,
           language: t.language,
         },
       },
       create: {
         orgId: ctx.orgId,
+        whatsAppAccountId: account.id,
         name: t.name,
         language: t.language,
         category: t.category,
@@ -89,8 +91,13 @@ export async function syncTemplatesAction(
     });
   }
 
+  await prisma.whatsAppAccount.update({
+    where: { id: account.id },
+    data: { lastTemplatesSyncAt: new Date() },
+  });
+
   revalidatePath("/dashboard/templates");
-  return { ok: `Synced ${templates.length} template(s) from Meta.` };
+  return { ok: `Synced ${templates.length} template(s) for ${account.wabaId}.` };
 }
 
 const buttonSchema = z.discriminatedUnion("type", [
@@ -153,7 +160,7 @@ export async function createTemplateAction(
     }
   }
 
-  const account = await prisma.whatsAppAccount.findFirst({ where: { orgId: ctx.orgId } });
+  const account = await getActiveAccount(ctx.orgId);
   if (!account?.accessTokenEnc) {
     return { error: "Connect WhatsApp first (Settings → WhatsApp)." };
   }
@@ -182,10 +189,11 @@ export async function createTemplateAction(
 
   await prisma.template.upsert({
     where: {
-      orgId_name_language: { orgId: ctx.orgId, name: input.name, language: input.language },
+      whatsAppAccountId_name_language: { whatsAppAccountId: account.id, name: input.name, language: input.language },
     },
     create: {
       orgId: ctx.orgId,
+      whatsAppAccountId: account.id,
       name: input.name,
       language: input.language,
       category: input.category,

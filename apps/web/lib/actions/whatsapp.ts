@@ -123,15 +123,29 @@ export async function connectWhatsAppAction(
   return { ok: "WhatsApp number connected. Subscribe the webhook in Meta to go live." };
 }
 
-/** Remove a connected WhatsApp account (and its numbers) from the active org. */
+/**
+ * Disconnect a WhatsApp account. Soft-delete: mark it DISCONNECTED (it stays
+ * visible in the list so you can see it was removed), drop its access token, and
+ * delete its message templates (they're WABA-specific and meaningless once
+ * disconnected). Contacts and chat history are preserved.
+ */
 export async function disconnectWhatsAppAction(formData: FormData): Promise<void> {
   const ctx = await requireActiveContext();
   if (!canManageOrg(ctx.role)) return;
   const accountId = String(formData.get("accountId") ?? "");
   if (!accountId) return;
-  // Scoped to the org so you can't delete another tenant's account.
-  await prisma.whatsAppAccount.deleteMany({
+
+  // Scoped to the org so you can't touch another tenant's account.
+  const account = await prisma.whatsAppAccount.findFirst({
     where: { id: accountId, orgId: ctx.orgId },
+    select: { id: true },
+  });
+  if (!account) return;
+
+  await prisma.template.deleteMany({ where: { whatsAppAccountId: account.id } });
+  await prisma.whatsAppAccount.update({
+    where: { id: account.id },
+    data: { status: "DISCONNECTED", accessTokenEnc: null },
   });
   revalidatePath("/dashboard/settings/whatsapp");
 }

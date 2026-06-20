@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
+import { getActiveAccount } from "@/lib/active-channel";
 import { canManageOrg } from "@watool/types";
 import { createBroadcastAction } from "@/lib/actions/broadcasts";
 import { SegmentBuilder } from "./SegmentBuilder";
@@ -15,8 +16,14 @@ export default async function NewBroadcastPage() {
     return <div className="text-sm text-sub">Only owners and admins can create broadcasts.</div>;
   }
 
+  // A broadcast sends from the active channel's number, so only that WABA's
+  // approved templates are valid choices.
+  const account = await getActiveAccount(ctx.orgId);
   const [approved, tags, optedInCount] = await Promise.all([
-    prisma.template.findMany({ where: { orgId: ctx.orgId, metaStatus: "APPROVED" }, orderBy: { name: "asc" } }),
+    prisma.template.findMany({
+      where: { orgId: ctx.orgId, metaStatus: "APPROVED", ...(account ? { whatsAppAccountId: account.id } : {}) },
+      orderBy: { name: "asc" },
+    }),
     prisma.tag.findMany({ where: { orgId: ctx.orgId }, orderBy: { name: "asc" } }),
     prisma.contact.count({ where: { orgId: ctx.orgId, optInStatus: "OPTED_IN" } }),
   ]);

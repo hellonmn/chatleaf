@@ -354,11 +354,13 @@ model WhatsAppAccount {
   accessTokenEnc String? // encrypted at rest
   tokenExpiresAt DateTime?
   status         WaAccountStatus @default(PENDING)
+  lastTemplatesSyncAt DateTime? // when templates were last pulled from Meta
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   org          Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
   phoneNumbers PhoneNumber[]
+  templates    Template[]
 
   @@index([orgId])
 }
@@ -648,21 +650,23 @@ enum TemplateStatus {
 }
 
 model Template {
-  id             String         @id @default(cuid())
-  orgId          String
-  name           String
-  language       String         @default("en_US")
-  category       String // MARKETING | UTILITY | AUTHENTICATION
-  components     Json
-  metaStatus     TemplateStatus @default(DRAFT)
-  metaTemplateId String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  orgId             String
+  whatsAppAccountId String? // the WABA these templates belong to (null = legacy/org-wide)
+  name              String
+  language          String         @default("en_US")
+  category          String // MARKETING | UTILITY | AUTHENTICATION
+  components        Json
+  metaStatus        TemplateStatus @default(DRAFT)
+  metaTemplateId    String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  org        Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account    WhatsAppAccount? @relation(fields: [whatsAppAccountId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
 
-  @@unique([orgId, name, language])
+  @@unique([whatsAppAccountId, name, language])
   @@index([orgId])
 }
 

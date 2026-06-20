@@ -3,6 +3,7 @@ import { Plus, Copy, Pencil, Search } from "lucide-react";
 import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { getActiveAccount } from "@/lib/active-channel";
 import { canManageOrg } from "@watool/types";
 import { timeAgo } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
@@ -60,13 +61,26 @@ export default async function TemplatesPage({
   const { category } = await searchParams;
   const active = category && category !== "all" ? category : "all";
 
-  const [templates, account] = await Promise.all([
-    prisma.template.findMany({
-      where: { orgId: ctx.orgId, ...(active !== "all" ? { category: active } : {}) },
-      orderBy: [{ updatedAt: "desc" }],
-    }),
-    prisma.whatsAppAccount.findFirst({ where: { orgId: ctx.orgId } }),
-  ]);
+  // Templates are per-WABA: show only the active channel's account's templates.
+  const account = await getActiveAccount(ctx.orgId);
+  const accountPhone = account
+    ? await prisma.phoneNumber.findFirst({
+        where: { whatsAppAccountId: account.id },
+        select: { displayNumber: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : null;
+  const templates = account
+    ? await prisma.template.findMany({
+        where: {
+          orgId: ctx.orgId,
+          whatsAppAccountId: account.id,
+          ...(active !== "all" ? { category: active } : {}),
+        },
+        orderBy: [{ updatedAt: "desc" }],
+      })
+    : [];
+  const channelLabel = accountPhone?.displayNumber ?? account?.wabaId ?? null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -97,6 +111,17 @@ export default async function TemplatesPage({
       {!account && (
         <div className="rounded-card bg-warm/15 px-4 py-3 text-sm text-[#c47a2e]">
           Connect a WhatsApp number in <Link href="/dashboard/settings/whatsapp" className="font-semibold underline">Channels</Link> to sync your templates.
+        </div>
+      )}
+
+      {account && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-sub">
+          <span className="rounded-pill bg-canvas px-2.5 py-1 font-semibold text-ink">{channelLabel}</span>
+          {account.lastTemplatesSyncAt ? (
+            <span>Last synced {timeAgo(account.lastTemplatesSyncAt)} · {templates.length} template(s)</span>
+          ) : (
+            <span className="text-[#c47a2e]">Not synced yet for this number — click <strong>Sync from Meta</strong>.</span>
+          )}
         </div>
       )}
 
