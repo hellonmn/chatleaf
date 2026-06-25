@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { X, Phone, Mail, UserPlus, MessageCircle } from "lucide-react";
+import { X, Phone, Mail, UserPlus } from "lucide-react";
+import { WaIcon } from "@/components/WaIcon";
 import { removeTagAction } from "@/lib/actions/contacts";
 import { ContactTagForm } from "@/components/ContactTagForm";
 import { avatarColor } from "@/lib/avatar";
@@ -127,9 +128,7 @@ export function ContactPanel({
 
       <Section title="Channel">
         <span className="inline-flex items-center gap-1.5 text-sm text-ink">
-          <span className="grid h-5 w-5 place-items-center rounded-full bg-[#25D366] text-white">
-            <MessageCircle className="h-3 w-3" />
-          </span>
+          <WaIcon className="h-5 w-5" />
           WhatsApp
         </span>
       </Section>

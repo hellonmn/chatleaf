@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Building2, Users, MessageSquare, Ban, ShieldCheck, MessageCircle, AlertTriangle } from "lucide-react";
+import { Building2, Users, MessageSquare, Ban, ShieldCheck, AlertTriangle } from "lucide-react";
+import { WaIcon } from "@/components/WaIcon";
 import { prisma } from "@watool/db";
 import { PLANS } from "@watool/types";
 import { getPlanConfigs } from "@/lib/plan-config";
@@ -139,7 +140,7 @@ export default async function AdminOverview() {
 
           <Card className="p-5">
             <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4 text-[#1da851]" />
+              <WaIcon className="h-4 w-4" />
               <span className="font-bold text-ink">WhatsApp health</span>
             </div>
             <div className="mt-2 flex items-baseline gap-2">

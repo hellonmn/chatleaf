@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MessageCircle, AlertTriangle, CheckCircle2, Clock, Smartphone } from "lucide-react";
+import { WaIcon } from "@/components/WaIcon";
 import { prisma, type WaAccountStatus } from "@watool/db";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { Card } from "@/components/ui/Card";
@@ -120,8 +121,8 @@ function Section({
                   href={`/admin/orgs/${a.org.id}`}
                   className="flex items-center gap-3 px-5 py-3.5 hover:bg-canvas"
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#25D366]/10 text-[#1da851]">
-                    <MessageCircle className="h-5 w-5" />
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-white">
+                    <WaIcon className="h-5 w-5" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-ink">{a.org.name}</div>

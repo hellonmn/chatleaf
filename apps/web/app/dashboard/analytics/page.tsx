@@ -2,7 +2,8 @@ import { prisma } from "@watool/db";
 import { requireActiveContext } from "@/lib/session";
 import { getActiveChannelId } from "@/lib/active-channel";
 import { Card } from "@/components/ui/Card";
-import { MessageSquare, CheckCheck, Eye, Timer, UserPlus, Users, MessageCircle } from "lucide-react";
+import { MessageSquare, CheckCheck, Eye, Timer, UserPlus, Users } from "lucide-react";
+import { WaIcon } from "@/components/WaIcon";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function dur(ms: number): string {
@@ -153,7 +154,7 @@ export default async function AnalyticsPage() {
         </div>
         {channelName && (
           <span className="inline-flex items-center gap-1.5 rounded-pill bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#1da851]">
-            <MessageCircle className="h-3.5 w-3.5" /> {channelName}
+            <WaIcon className="h-3.5 w-3.5" /> {channelName}
           </span>
         )}
       </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, MessageCircle, Check } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { setActiveChannelAction } from "@/lib/actions/channel";
+import { WaIcon } from "@/components/WaIcon";
 
 export type ChannelOpt = { id: string; label: string };
 
@@ -49,7 +50,7 @@ export function ChannelSwitcher({ channels, activeId }: { channels: ChannelOpt[]
         title="Filter the inbox by WhatsApp number"
         className="flex items-center gap-2 rounded-card border border-line bg-white px-2.5 py-1.5 text-sm font-semibold text-ink hover:bg-canvas"
       >
-        <MessageCircle className="h-4 w-4 text-[#1da851]" />
+        <WaIcon className="h-4 w-4" />
         <span className="hidden max-w-[140px] truncate sm:block">{active ? active.label : "All channels"}</span>
         <ChevronDown className="h-4 w-4 text-faint" />
       </button>

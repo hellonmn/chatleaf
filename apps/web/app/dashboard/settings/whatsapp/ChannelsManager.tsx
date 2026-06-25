@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Plus, Pencil, Smartphone, ShieldAlert } from "lucide-react";
+import { Plus, Pencil, ShieldAlert, PlugZap } from "lucide-react";
 import { disconnectWhatsAppAction } from "@/lib/actions/whatsapp";
 import { ConfirmSubmit } from "@/components/ConfirmSubmit";
 import { EmbeddedSignup } from "@/components/EmbeddedSignup";
+import { WaIcon } from "@/components/WaIcon";
 import { ConnectForm } from "./ConnectForm";
 
 export type Channel = {
@@ -74,7 +75,7 @@ export function ChannelsManager({
           return (
             <button key={c.id} type="button" onClick={() => select(c.id)} className={rowCls(selected === c.id)}>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-white">
-                <img src="/channels/whatsapp.png" alt="WhatsApp" className="h-6 w-6 object-contain" />
+                <img src="/channels/whatsapp.png" alt="WhatsApp" className={`h-6 w-6 object-contain ${c.status === "DISCONNECTED" ? "grayscale" : ""}`} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-ink">
@@ -136,40 +137,52 @@ export function ChannelsManager({
         ) : (
           <>
             {/* Account header */}
-            <div className="rounded-card border border-line bg-white p-5 shadow-card">
-              <div className="flex items-start gap-4">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#25D366] text-white">
-                  <MessageCircle className="h-6 w-6" />
+            <div className="overflow-hidden rounded-card border border-line bg-white shadow-card">
+              <div className="flex items-start gap-4 border-b border-line bg-gradient-to-br from-[#25D366]/10 to-transparent p-5">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-line bg-white shadow-sm">
+                  <WaIcon className={`h-7 w-7 ${active.status === "DISCONNECTED" ? "grayscale" : ""}`} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-ink">{active.phones[0]?.displayNumber ?? `WABA ${active.wabaId}`}</span>
+                    <span className="text-lg font-bold text-ink">{active.phones[0]?.displayNumber ?? `WABA ${active.wabaId}`}</span>
                     <span className={`rounded-pill px-2 py-0.5 text-xs font-semibold ${STATUS_PILL[active.status] ?? STATUS_PILL.PENDING}`}>
                       {active.status.toLowerCase()}
                     </span>
                   </div>
-                  {active.phones[0]?.verifiedName && <div className="text-xs text-faint">⚡ {active.phones[0]!.verifiedName}</div>}
+                  {active.phones[0]?.verifiedName && (
+                    <div className="mt-0.5 text-sm text-sub">{active.phones[0]!.verifiedName}</div>
+                  )}
                   <div className="mt-0.5 text-xs text-faint">WABA {active.wabaId}</div>
                 </div>
                 {manage && (
                   <div className="flex shrink-0 gap-2">
-                    <button onClick={() => setEditing((v) => !v)} className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas">
-                      <Pencil className="h-4 w-4" /> {editing ? "Close" : "Edit"}
+                    <button onClick={() => setEditing((v) => !v)} className="inline-flex items-center gap-1.5 rounded-btn border border-line bg-white px-3 py-1.5 text-sm font-semibold text-sub hover:bg-canvas">
+                      <Pencil className="h-4 w-4" /> {editing ? "Close" : active.status === "DISCONNECTED" ? "Reconnect" : "Edit"}
                     </button>
-                    <form action={disconnectWhatsAppAction}>
-                      <input type="hidden" name="accountId" value={active.id} />
-                      <ConfirmSubmit message={`Disconnect ${active.phones[0]?.displayNumber ?? "this number"}?`} className="rounded-btn bg-rose/10 px-3 py-1.5 text-sm font-semibold text-rose hover:bg-rose/15">
-                        Remove
-                      </ConfirmSubmit>
-                    </form>
+                    {active.status !== "DISCONNECTED" && (
+                      <form action={disconnectWhatsAppAction}>
+                        <input type="hidden" name="accountId" value={active.id} />
+                        <ConfirmSubmit message={`Disconnect ${active.phones[0]?.displayNumber ?? "this number"}? Its templates will be removed; contacts and chats stay.`} className="rounded-btn bg-rose/10 px-3 py-1.5 text-sm font-semibold text-rose hover:bg-rose/15">
+                          Disconnect
+                        </ConfirmSubmit>
+                      </form>
+                    )}
                   </div>
                 )}
               </div>
 
+              <div className="p-5">
               {active.status === "ERROR" && (
-                <div className="mt-4 flex items-start gap-2 rounded-card bg-rose/10 px-3 py-2 text-sm text-rose">
+                <div className="mb-4 flex items-start gap-2 rounded-card bg-rose/10 px-3 py-2 text-sm text-rose">
                   <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   This number's access token is invalid/expired. Edit the connection to reconnect.
+                </div>
+              )}
+
+              {active.status === "DISCONNECTED" && (
+                <div className="mb-4 flex items-start gap-2 rounded-card bg-warm/15 px-3 py-2 text-sm text-[#c47a2e]">
+                  <PlugZap className="mt-0.5 h-4 w-4 shrink-0" />
+                  This number is disconnected. Click <strong>Reconnect</strong> and re-enter the access token to use it again.
                 </div>
               )}
 
@@ -186,6 +199,7 @@ export function ChannelsManager({
                     <div className="mt-0.5 truncate text-sm font-bold text-brand">{s.value}</div>
                   </div>
                 ))}
+              </div>
               </div>
             </div>
 

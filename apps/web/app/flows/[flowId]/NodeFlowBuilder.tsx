@@ -7,11 +7,12 @@ import Link from "next/link";
 import {
   ArrowLeft, Zap, MessageSquare, HelpCircle, GitBranch, Settings2, Tag, Sparkles,
   Users, Clock, Octagon, Plus, Trash2, Check, Loader2, Maximize2, Minus, X,
-  MousePointer2, Wand2, MoveVertical, MoveHorizontal, MessageCircle, Briefcase,
+  MousePointer2, Wand2, MoveVertical, MoveHorizontal, Briefcase,
   ArrowRightLeft, type LucideIcon,
 } from "lucide-react";
 import type { FlowGraph } from "@watool/types";
 import { saveFlowAction, publishFlowAction } from "@/lib/actions/flows";
+import { WaIcon } from "@/components/WaIcon";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 type Kind =
@@ -404,7 +405,7 @@ export function NodeFlowBuilder({
         </div>
         {channelLabel && (
           <span className="hidden items-center gap-1.5 rounded-pill bg-[#25D366]/10 px-2.5 py-1 text-xs font-semibold text-[#1da851] sm:inline-flex" title="This flow runs on this channel">
-            <MessageCircle className="h-3.5 w-3.5" /> {channelLabel}
+            <WaIcon className="h-3.5 w-3.5" /> {channelLabel}
           </span>
         )}
         {msg && <span className={`text-xs font-medium ${msg.kind === "ok" ? "text-emerald-600" : "text-rose"}`}>{msg.text}</span>}
